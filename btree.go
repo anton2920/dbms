@@ -1,282 +1,310 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type K int
 type V int
 
-type item struct {
-	p     ref
-	key   K
-	count int
+type Item struct {
+	Key       K
+	Value     V
+	ChildPage *Page
 }
-
-const (
-	n  = 2
-	nn = 2 * n
-)
 
 type Page struct {
-	m  int
-	p0 ref
-	e  [nn + 1]item
+	Items      []Item /* NOTE(anton2920): items start with 1. */
+	ChildPage0 *Page
 }
 
-type ref *Page
+type Btree struct {
+	Root *Page
 
-func search(x K, a ref, h *bool, v *item) {
-	var l, r, k int
-	var u item
-	var q ref
+	Order int
 
-	insert := func() {
-		var b ref
+	/* TODO(anton2920): add more appropriate fields. */
+}
 
-		if a.m < nn {
-			/* Insert u to the right of a.e[r]. */
-			a.m++
-			*h = false
-			for i := a.m; i >= r+2; i-- {
-				a.e[i] = a.e[i-1]
-			}
-			a.e[r+1] = u
+func bsearchItems(page *Page, key K) (l int, r int, k int) {
+	l = 0
+	r = len(page.Items) - 1
+	for {
+		k = (l + r) / 2
+		if key <= page.Items[k].Key {
+			r = k - 1
+		}
+		if key >= page.Items[k].Key {
+			l = k + 1
+		}
+		if l > r {
+			break
+		}
+	}
+	return
+}
+
+func (bt *Btree) newPage() *Page {
+	return &Page{Items: make([]Item, 0, bt.Order*2)}
+}
+
+/* set returns whether tree needs to grow. */
+func (bt *Btree) set(page *Page, key K, value V) (item Item, shouldGrow bool) {
+	if page == nil {
+		/* Item with key 'key' is not in tree. */
+		return Item{Key: key, Value: value}, true
+	}
+
+	/* TODO(anton2920): don't return l. */
+	l, r, _ := bsearchItems(page, key)
+	if l-r > 1 {
+		/* Found. */
+		shouldGrow = false
+	} else {
+		/* Item is not on this page */
+		var childPage *Page
+		var newItem Item
+
+		if r == -1 {
+			childPage = page.ChildPage0
 		} else {
-			/* Page a is full; split it and assign emerging item to v. */
-			b = ref(new(Page))
-			if r <= n {
-				if r == n {
-					*v = u
-				} else {
-					*v = a.e[n]
-					for i := n; i >= r+2; i-- {
-						a.e[i] = a.e[i-1]
+			childPage = page.Items[r].ChildPage
+		}
+
+		newItem, shouldGrow = bt.set(childPage, key, value)
+		if shouldGrow {
+			if len(page.Items) < bt.Order*2 {
+				/* Insert 'newItem' to the right of 'page.Items[r]'. */
+				page.Items = append(page.Items, Item{})
+				for i := len(page.Items) - 1; i > r+1; i-- {
+					page.Items[i] = page.Items[i-1]
+				}
+				page.Items[r+1] = newItem
+				shouldGrow = false
+			} else {
+				/* 'page' is full; split it and assign emerging Item to 'item'. */
+				newPage := bt.newPage()
+				if r <= bt.Order-1 {
+					if r == bt.Order-1 {
+						item = newItem
+					} else {
+						item = page.Items[bt.Order-1]
+						for i := bt.Order - 1; i > r+1; i-- {
+							page.Items[i] = page.Items[i-1]
+						}
+						page.Items[r+1] = newItem
 					}
-					a.e[r+1] = u
+
+					newPage.Items = newPage.Items[:bt.Order]
+					for i := 0; i < bt.Order; i++ {
+						newPage.Items[i] = page.Items[i+bt.Order]
+					}
+				} else {
+					/* Insert 'newItem' in right page. */
+					r = r - bt.Order
+					item = page.Items[bt.Order]
+
+					newPage.Items = newPage.Items[:bt.Order]
+					for i := 0; i < r; i++ {
+						newPage.Items[i] = page.Items[i+bt.Order+1]
+					}
+					newPage.Items[r] = newItem
+					for i := r + 1; i < bt.Order; i++ {
+						newPage.Items[i] = page.Items[i+bt.Order]
+					}
 				}
-				for i := 1; i <= n; i++ {
-					b.e[i] = a.e[i+n]
-				}
-			} else {
-				/* Insert u in right page. */
-				r = r - n
-				*v = a.e[n+1]
-				for i := 1; i <= r-1; i++ {
-					b.e[i] = a.e[i+n+1]
-				}
-				b.e[r] = u
-				for i := r + 1; i <= n; i++ {
-					b.e[i] = a.e[i+n]
-				}
+				page.Items = page.Items[:bt.Order]
+
+				newPage.ChildPage0 = item.ChildPage
+				item.ChildPage = newPage
 			}
-			a.m = n
-			b.m = n
-			b.p0 = v.p
-			v.p = b
 		}
 	}
+	return
+}
 
-	if a == nil {
-		/* Item with key x is not in tree. */
-		*h = true
-		v.key = x
-		v.count = 1
-		v.p = nil
-	} else {
-		l = 1
-		r = a.m
-		for {
-			k = (l + r) / 2
-			if x <= a.e[k].key {
-				r = k - 1
-			}
-			if x >= a.e[k].key {
-				l = k + 1
-			}
-			if r < l {
-				break
-			}
+func (bt *Btree) Set(k K, v V) {
+	item, shouldGrow := bt.set(bt.Root, k, v)
+	if shouldGrow {
+		prev := bt.Root
+		bt.Root = bt.newPage()
+		bt.Root.ChildPage0 = prev
+		bt.Root.Items = append(bt.Root.Items, item)
+	}
+}
+
+func (bt *Btree) stringImpl(sb *strings.Builder, page *Page, level int) {
+	if page != nil {
+		for i := 0; i < level; i++ {
+			sb.WriteRune('\t')
 		}
-		if l-r > 1 {
-			/* Found. */
-			a.e[k].count++
-			*h = false
-		} else {
-			/* Item is not on this page */
-			if r == 0 {
-				q = a.p0
-			} else {
-				q = a.e[r].p
-			}
-			search(x, q, h, &u)
-			if *h {
-				insert()
-			}
+		for i := 0; i < len(page.Items); i++ {
+			fmt.Fprintf(sb, "%4d", page.Items[i].Key)
+		}
+		sb.WriteRune('\n')
+
+		bt.stringImpl(sb, page.ChildPage0, level+1)
+		for i := 0; i < len(page.Items); i++ {
+			bt.stringImpl(sb, page.Items[i].ChildPage, level+1)
 		}
 	}
 }
 
-func delete(x K, a ref, h *bool) {
-	var k, l, r int
-	var q ref
+func (bt Btree) String() string {
+	var sb strings.Builder
 
-	underflow := func(c ref, a ref, s int, h *bool) {
-		/* a = underflow page, c = ancestor page. */
-		var k, mb, mc int
-		var b ref
+	bt.stringImpl(&sb, bt.Root, 0)
 
-		/* h = true, a.m = n - 1. */
-		mc = c.m
-		if s < mc {
-			/* b = page to the right of a. */
-			s++
-			b = c.e[s].p
-			mb = b.m
-			k = (mb - n + 1) / 2
-			/* k = no. of items available on adjacent page b. */
-			a.e[n] = c.e[s]
-			a.e[n].p = b.p0
-			if k > 0 {
-				/* move k items from b to a. */
-				for i := 1; i <= k-1; i++ {
-					a.e[i+n] = b.e[i]
-				}
-				c.e[s] = b.e[k]
-				c.e[s].p = b
-
-				b.p0 = b.e[k].p
-				mb = mb - k
-
-				for i := 1; i <= mb; i++ {
-					b.e[i] = b.e[i+k]
-				}
-				b.m = mb
-				a.m = n - 1 + k
-				*h = false
-			} else {
-				/* merge pages a and b. */
-				for i := 1; i <= n; i++ {
-					a.e[i+n] = b.e[i]
-				}
-				for i := s; i <= mc-1; i++ {
-					c.e[i] = c.e[i+1]
-				}
-				a.m = nn
-				c.m = mc - 1
-			}
-		} else {
-			/* b = page to the left of a. */
-			if s == 1 {
-				b = c.p0
-			} else {
-				b = c.e[s-1].p
-			}
-			mb = b.m + 1
-			k = (mb - n) / 2
-			if k > 0 {
-				/* move k items from page b to a. */
-				for i := n - 1; i >= 1; i-- {
-					a.e[i+k] = a.e[i]
-				}
-				a.e[k] = c.e[s]
-				a.e[k].p = a.p0
-				mb = mb - k
-				for i := k - 1; i >= 1; i-- {
-					a.e[i] = b.e[i+mb]
-				}
-				a.p0 = b.e[mb].p
-				c.e[s] = b.e[mb]
-				c.e[s].p = a
-				b.m = mb - 1
-				a.m = n - 1 + k
-				*h = false
-			} else {
-				/* merge pages a and b. */
-				b.e[mb] = c.e[s]
-				b.e[mb].p = a.p0
-				for i := 1; i <= n-1; i++ {
-					b.e[i+mb] = a.e[i]
-				}
-				b.m = nn
-				c.m = mc - 1
-			}
-		}
-	}
-
-	var del func(p ref, h *bool)
-	del = func(p ref, h *bool) {
-		q := p.e[p.m].p
-		if q != nil {
-			del(q, h)
-			if *h {
-				underflow(p, q, p.m, h)
-			}
-		} else {
-			p.e[p.m].p = a.e[k].p
-			a.e[k] = p.e[p.m]
-			p.m--
-			*h = p.m < n
-		}
-	}
-
-	if a == nil {
-		/* key is not there. */
-		*h = false
-	} else {
-		l = 1
-		r = a.m
-		for {
-			k = (l + r) / 2
-			if x <= a.e[k].key {
-				r = k - 1
-			}
-			if x >= a.e[k].key {
-				l = k + 1
-			}
-			if l > r {
-				break
-			}
-		}
-		if r == 0 {
-			q = a.p0
-		} else {
-			q = a.e[r].p
-		}
-		if l-r > 1 {
-			/* Found, now delete a.e[k]. */
-			if q == nil {
-				/* a is a terminal page. */
-				a.m--
-				*h = a.m < n
-				for i := k; i <= a.m; i++ {
-					a.e[i] = a.e[i+1]
-				}
-			} else {
-				del(q, h)
-				if *h {
-					underflow(a, q, r, h)
-				}
-			}
-		} else {
-			delete(x, q, h)
-			if *h {
-				underflow(a, q, r, h)
-			}
-		}
-	}
+	return sb.String()
 }
 
-func printtree(p ref, l int) {
-	if p != nil {
-		for i := 1; i <= l; i++ {
-			fmt.Printf("\t")
-		}
-		for i := 1; i <= p.m; i++ {
-			fmt.Printf("%4d", p.e[i].key)
-		}
-		fmt.Println()
-		printtree(p.p0, l+1)
-		for i := 1; i <= p.m; i++ {
-			printtree(p.e[i].p, l+1)
-		}
-	}
-}
+//func delete(x K, a ref, h *bool) {
+//	var k, l, r int
+//	var q ref
+//
+//	underflow := func(c ref, a ref, s int, h *bool) {
+//		/* a = underflow page, c = ancestor page. */
+//		var k, mb, mc int
+//		var b ref
+//
+//		/* h = true, a.m = n - 1. */
+//		mc = c.m
+//		if s < mc {
+//			/* b = page to the right of a. */
+//			s++
+//			b = c.e[s].ChildPage
+//			mb = b.m
+//			k = (mb - n + 1) / 2
+//			/* k = no. of Items available on adjacent page b. */
+//			a.e[n] = c.e[s]
+//			a.e[n].ChildPage = b.ChildPage0
+//			if k > 0 {
+//				/* move k Items from b to a. */
+//				for i := 1; i <= k-1; i++ {
+//					a.e[i+n] = b.e[i]
+//				}
+//				c.e[s] = b.e[k]
+//				c.e[s].ChildPage = b
+//
+//				b.ChildPage0 = b.e[k].ChildPage
+//				mb = mb - k
+//
+//				for i := 1; i <= mb; i++ {
+//					b.e[i] = b.e[i+k]
+//				}
+//				b.m = mb
+//				a.m = n - 1 + k
+//				*h = false
+//			} else {
+//				/* merge pages a and b. */
+//				for i := 1; i <= n; i++ {
+//					a.e[i+n] = b.e[i]
+//				}
+//				for i := s; i <= mc-1; i++ {
+//					c.e[i] = c.e[i+1]
+//				}
+//				a.m = nn
+//				c.m = mc - 1
+//			}
+//		} else {
+//			/* b = page to the left of a. */
+//			if s == 1 {
+//				b = c.ChildPage0
+//			} else {
+//				b = c.e[s-1].ChildPage
+//			}
+//			mb = b.m + 1
+//			k = (mb - n) / 2
+//			if k > 0 {
+//				/* move k Items from page b to a. */
+//				for i := n - 1; i >= 1; i-- {
+//					a.e[i+k] = a.e[i]
+//				}
+//				a.e[k] = c.e[s]
+//				a.e[k].ChildPage = a.ChildPage0
+//				mb = mb - k
+//				for i := k - 1; i >= 1; i-- {
+//					a.e[i] = b.e[i+mb]
+//				}
+//				a.ChildPage0 = b.e[mb].ChildPage
+//				c.e[s] = b.e[mb]
+//				c.e[s].ChildPage = a
+//				b.m = mb - 1
+//				a.m = n - 1 + k
+//				*h = false
+//			} else {
+//				/* merge pages a and b. */
+//				b.e[mb] = c.e[s]
+//				b.e[mb].ChildPage = a.ChildPage0
+//				for i := 1; i <= n-1; i++ {
+//					b.e[i+mb] = a.e[i]
+//				}
+//				b.m = nn
+//				c.m = mc - 1
+//			}
+//		}
+//	}
+//
+//	var del func(p ref, h *bool)
+//	del = func(p ref, h *bool) {
+//		q := p.e[p.m].ChildPage
+//		if q != nil {
+//			del(q, h)
+//			if *h {
+//				underflow(p, q, p.m, h)
+//			}
+//		} else {
+//			p.e[p.m].ChildPage = a.e[k].ChildPage
+//			a.e[k] = p.e[p.m]
+//			p.m--
+//			*h = p.m < n
+//		}
+//	}
+//
+//	if a == nil {
+//		/* key is not there. */
+//		*h = false
+//	} else {
+//		l = 1
+//		r = a.m
+//		for {
+//			k = (l + r) / 2
+//			if x <= a.e[k].key {
+//				r = k - 1
+//			}
+//			if x >= a.e[k].key {
+//				l = k + 1
+//			}
+//			if l > r {
+//				break
+//			}
+//		}
+//		if r == 0 {
+//			q = a.ChildPage0
+//		} else {
+//			q = a.e[r].ChildPage
+//		}
+//		if l-r > 1 {
+//			/* Found, now delete a.e[k]. */
+//			if q == nil {
+//				/* a is a terminal page. */
+//				a.m--
+//				*h = a.m < n
+//				for i := k; i <= a.m; i++ {
+//					a.e[i] = a.e[i+1]
+//				}
+//			} else {
+//				del(q, h)
+//				if *h {
+//					underflow(a, q, r, h)
+//				}
+//			}
+//		} else {
+//			delete(x, q, h)
+//			if *h {
+//				underflow(a, q, r, h)
+//			}
+//		}
+//	}
+//}
