@@ -19,10 +19,17 @@ type Page struct {
 	ChildPage0 *Page
 }
 
+type PathItem struct {
+	Page  *Page
+	Index int
+}
+
 type Btree struct {
 	Root *Page
 
 	Order int
+
+	SearchPath []PathItem
 
 	/* TODO(anton2920): add more appropriate fields. */
 }
@@ -46,32 +53,41 @@ func (bt *Btree) newPage() *Page {
 	return &Page{Items: make([]Item, 0, bt.Order*2)}
 }
 
-/* set returns whether tree needs to grow. */
-func (bt *Btree) set(page *Page, key K, value V) (item Item, shouldGrow bool) {
-	if page == nil {
-		return Item{Key: key, Value: value}, true
+func (bt *Btree) Set(key K, value V) {
+	if bt.Order == 0 {
+		bt.Order = DefaultBtreeOrder
 	}
+	bt.SearchPath = bt.SearchPath[:0]
 
-	index, ok := findOnPage(page, key)
-	if ok {
-		return Item{}, false
+	page := bt.Root
+	for page != nil {
+		index, ok := findOnPage(page, key)
+		if ok {
+			return
+		}
+
+		var childPage *Page
+		if index == -1 {
+			childPage = page.ChildPage0
+		} else {
+			childPage = page.Items[index].ChildPage
+		}
+		bt.SearchPath = append(bt.SearchPath, PathItem{Page: page, Index: index})
+		page = childPage
 	}
+	newItem := Item{Key: key, Value: value}
 
-	var childPage *Page
-	if index == -1 {
-		childPage = page.ChildPage0
-	} else {
-		childPage = page.Items[index].ChildPage
-	}
+	item := newItem
+	for p := len(bt.SearchPath) - 1; p >= 0; p-- {
+		index := bt.SearchPath[p].Index
+		page := bt.SearchPath[p].Page
 
-	newItem, shouldGrow := bt.set(childPage, key, value)
-	if shouldGrow {
 		if len(page.Items) < bt.Order*2 {
 			/* Insert 'newItem' to the right of 'page.Items[index]'. */
-			shouldGrow = false
 			page.Items = page.Items[:len(page.Items)+1]
 			copy(page.Items[index+2:], page.Items[index+1:])
 			page.Items[index+1] = newItem
+			return
 		} else {
 			/* 'page' is full; split it and assign emerging Item to 'item'. */
 			newPage := bt.newPage()
@@ -101,22 +117,14 @@ func (bt *Btree) set(page *Page, key K, value V) (item Item, shouldGrow bool) {
 			newPage.ChildPage0 = item.ChildPage
 			item.ChildPage = newPage
 		}
-	}
-	return
-}
-
-func (bt *Btree) Set(k K, v V) {
-	if bt.Order == 0 {
-		bt.Order = DefaultBtreeOrder
+		newItem = item
 	}
 
-	item, shouldGrow := bt.set(bt.Root, k, v)
-	if shouldGrow {
-		prev := bt.Root
-		bt.Root = bt.newPage()
-		bt.Root.ChildPage0 = prev
-		bt.Root.Items = append(bt.Root.Items, item)
-	}
+	prev := bt.Root
+	bt.Root = bt.newPage()
+	bt.Root.ChildPage0 = prev
+	bt.Root.Items = bt.Root.Items[:1]
+	bt.Root.Items[0] = item
 }
 
 func (bt *Btree) stringImpl(sb *strings.Builder, page *Page, level int) {
