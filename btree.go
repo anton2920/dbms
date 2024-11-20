@@ -15,7 +15,7 @@ type Item struct {
 }
 
 type Page struct {
-	Items      []Item /* NOTE(anton2920): items start with 1. */
+	Items      []Item
 	ChildPage0 *Page
 }
 
@@ -27,66 +27,9 @@ type Btree struct {
 	/* TODO(anton2920): add more appropriate fields. */
 }
 
-const DefaultBtreeOrder = 2
+const DefaultBtreeOrder = 8
 
 /* findOnPage returns index of element whose key is <= 'key'. Returns true, if ==. */
-/*
-func findOnPage(page *Page, key K) (int, bool) {
-	l := 0
-	r := len(page.Items) - 1
-	for {
-		k := (l + r) / 2
-		if key <= page.Items[k].Key {
-			r = k - 1
-		}
-		if key >= page.Items[k].Key {
-			l = k + 1
-		}
-		if l > r {
-			break
-		}
-	}
-	return r, l-r > 1
-}
-*/
-
-/*
-func findOnPage(page *Page, key K) (int, bool) {
-	for i := 0; i < len(page.Items); i++ {
-		if key <= page.Items[i].Key {
-			return i - 1, key == page.Items[i].Key
-		}
-	}
-	return len(page.Items) - 1, false
-}
-*/
-
-/*
-func findOnPage(page *Page, key K) (int, bool) {
-	if key <= page.Items[0].Key {
-		return -1, key == page.Items[0].Key
-	} else if key >= page.Items[len(page.Items)-1].Key {
-		return len(page.Items) - 1, key == page.Items[len(page.Items)-1].Key
-	}
-
-	l := 1
-	r := len(page.Items) - 2
-	for {
-		k := (l + r) / 2
-		if key <= page.Items[k].Key {
-			r = k - 1
-		}
-		if key >= page.Items[k].Key {
-			l = k + 1
-		}
-		if l > r {
-			break
-		}
-	}
-	return r, l-r > 1
-}
-*/
-
 func findOnPage(page *Page, key K) (int, bool) {
 	if key >= page.Items[len(page.Items)-1].Key {
 		return len(page.Items) - 1, key == page.Items[len(page.Items)-1].Key
@@ -125,10 +68,10 @@ func (bt *Btree) set(page *Page, key K, value V) (item Item, shouldGrow bool) {
 	if shouldGrow {
 		if len(page.Items) < bt.Order*2 {
 			/* Insert 'newItem' to the right of 'page.Items[index]'. */
+			shouldGrow = false
 			page.Items = page.Items[:len(page.Items)+1]
 			copy(page.Items[index+2:], page.Items[index+1:])
 			page.Items[index+1] = newItem
-			shouldGrow = false
 		} else {
 			/* 'page' is full; split it and assign emerging Item to 'item'. */
 			newPage := bt.newPage()
