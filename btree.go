@@ -27,14 +27,15 @@ type Btree struct {
 	/* TODO(anton2920): add more appropriate fields. */
 }
 
-const DefaultBtreeOrder = 8
+const DefaultBtreeOrder = 2
 
+/* findOnPage returns index of element whose key is <= 'key'. Returns true, if ==. */
 /*
-func searchItems(page *Page, key K) (int, bool) {
-	l = 0
-	r = len(page.Items) - 1
+func findOnPage(page *Page, key K) (int, bool) {
+	l := 0
+	r := len(page.Items) - 1
 	for {
-		k = (l + r) / 2
+		k := (l + r) / 2
 		if key <= page.Items[k].Key {
 			r = k - 1
 		}
@@ -45,22 +46,57 @@ func searchItems(page *Page, key K) (int, bool) {
 			break
 		}
 	}
-	return
+	return r, l-r > 1
 }
 */
 
-/* findOnPage returns index of element whose key is <= 'key'. Returns true, if ==. */
+/*
 func findOnPage(page *Page, key K) (int, bool) {
-	index := -1
 	for i := 0; i < len(page.Items); i++ {
-		if key >= page.Items[i].Key {
-			index = i
-			if key == page.Items[i].Key {
-				return index, true
-			}
+		if key <= page.Items[i].Key {
+			return i - 1, key == page.Items[i].Key
 		}
 	}
-	return index, false
+	return len(page.Items) - 1, false
+}
+*/
+
+/*
+func findOnPage(page *Page, key K) (int, bool) {
+	if key <= page.Items[0].Key {
+		return -1, key == page.Items[0].Key
+	} else if key >= page.Items[len(page.Items)-1].Key {
+		return len(page.Items) - 1, key == page.Items[len(page.Items)-1].Key
+	}
+
+	l := 1
+	r := len(page.Items) - 2
+	for {
+		k := (l + r) / 2
+		if key <= page.Items[k].Key {
+			r = k - 1
+		}
+		if key >= page.Items[k].Key {
+			l = k + 1
+		}
+		if l > r {
+			break
+		}
+	}
+	return r, l-r > 1
+}
+*/
+
+func findOnPage(page *Page, key K) (int, bool) {
+	if key >= page.Items[len(page.Items)-1].Key {
+		return len(page.Items) - 1, key == page.Items[len(page.Items)-1].Key
+	}
+	for i := 0; i < len(page.Items); i++ {
+		if key <= page.Items[i].Key {
+			return i - 1, key == page.Items[i].Key
+		}
+	}
+	return len(page.Items) - 1, false
 }
 
 func (bt *Btree) newPage() *Page {

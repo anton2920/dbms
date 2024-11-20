@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
 	"testing"
 )
@@ -17,52 +18,74 @@ func BenchmarkRandInt(b *testing.B) {
 }
 
 func BenchmarkBtreeSet(b *testing.B) {
-	var number int
-	rng := rand.New(rand.NewSource(Seed))
+	const MinOrder = 2
+	const MaxOrder = 16
 
-	b.ResetTimer()
 	b.Run("Random", func(b *testing.B) {
-		var bt Btree
-		for i := 0; i < b.N; i++ {
-			bt.Set(K(rng.Int()), 0)
+		for order := MinOrder; order <= MaxOrder; order++ {
+			b.Run(fmt.Sprintf("Order-%d", order), func(b *testing.B) {
+				var bt Btree
+
+				bt.Order = order
+				rng := rand.New(rand.NewSource(Seed))
+				for i := 0; i < b.N; i++ {
+					bt.Set(K(rng.Int()), 0)
+				}
+			})
 		}
 	})
 	b.Run("Forward", func(b *testing.B) {
-		var bt Btree
-		for i := 0; i < b.N; i++ {
-			bt.Set(K(number), 0)
-			number++
+		for order := MinOrder; order <= MaxOrder; order++ {
+			b.Run(fmt.Sprintf("Order-%d", order), func(b *testing.B) {
+				var number int
+				var bt Btree
+
+				bt.Order = order
+				for i := 0; i < b.N; i++ {
+					bt.Set(K(number), 0)
+					number++
+				}
+			})
 		}
 	})
 	b.Run("Backward", func(b *testing.B) {
-		var bt Btree
-		for i := 0; i < b.N; i++ {
-			bt.Set(K(number), 0)
-			number--
+		for order := MinOrder; order <= MaxOrder; order++ {
+			b.Run(fmt.Sprintf("Order-%d", order), func(b *testing.B) {
+				var number int
+				var bt Btree
+
+				bt.Order = order
+				for i := 0; i < b.N; i++ {
+					bt.Set(K(number), 0)
+					number--
+				}
+			})
 		}
 	})
 }
 
 func BenchmarkMapSet(b *testing.B) {
-	var number int
-	rng := rand.New(rand.NewSource(Seed))
-
-	b.ResetTimer()
 	b.Run("Random", func(b *testing.B) {
 		m := make(map[K]V)
+
+		rng := rand.New(rand.NewSource(Seed))
 		for i := 0; i < b.N; i++ {
 			m[K(rng.Int())] = 0
 		}
 	})
 	b.Run("Forward", func(b *testing.B) {
+		var number int
 		m := make(map[K]V)
+
 		for i := 0; i < b.N; i++ {
 			m[K(number)] = 0
 			number++
 		}
 	})
 	b.Run("Backward", func(b *testing.B) {
+		var number int
 		m := make(map[K]V)
+
 		for i := 0; i < b.N; i++ {
 			m[K(number)] = 0
 			number--
