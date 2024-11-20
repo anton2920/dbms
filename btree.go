@@ -49,8 +49,8 @@ func findOnPage(page *Page, key K) (int, bool) {
 	return len(page.Items) - 1, false
 }
 
-func (bt *Btree) newPage() *Page {
-	return &Page{Items: make([]Item, 0, bt.Order*2)}
+func (bt *Btree) newPage(l int) *Page {
+	return &Page{Items: make([]Item, l, bt.Order*2)}
 }
 
 func (bt *Btree) Set(key K, value V) {
@@ -88,42 +88,37 @@ func (bt *Btree) Set(key K, value V) {
 			copy(page.Items[index+2:], page.Items[index+1:])
 			page.Items[index+1] = newItem
 			return
-		} else {
-			/* 'page' is full; split it and assign emerging Item to 'item'. */
-			newPage := bt.newPage()
-			if index <= bt.Order-1 {
-				if index == bt.Order-1 {
-					item = newItem
-				} else {
-					item = page.Items[bt.Order-1]
-					copy(page.Items[index+2:bt.Order], page.Items[index+1:])
-					page.Items[index+1] = newItem
-				}
-
-				newPage.Items = newPage.Items[:bt.Order]
-				copy(newPage.Items, page.Items[bt.Order:])
-			} else {
-				/* Insert 'newItem' in right page. */
-				item = page.Items[bt.Order]
-				index = index - bt.Order
-
-				newPage.Items = newPage.Items[:bt.Order]
-				copy(newPage.Items, page.Items[bt.Order+1:])
-				newPage.Items[index] = newItem
-				copy(newPage.Items[index+1:], page.Items[index+1+bt.Order:])
-			}
-			page.Items = page.Items[:bt.Order]
-
-			newPage.ChildPage0 = item.ChildPage
-			item.ChildPage = newPage
 		}
+
+		/* 'page' is full; split it and assign emerging Item to 'item'. */
+		newPage := bt.newPage(bt.Order)
+		if index <= bt.Order-1 {
+			if index < bt.Order-1 {
+				item = page.Items[bt.Order-1]
+				copy(page.Items[index+2:bt.Order], page.Items[index+1:])
+				page.Items[index+1] = newItem
+			}
+			copy(newPage.Items, page.Items[bt.Order:])
+		} else {
+			/* Insert 'newItem' in right page. */
+			item = page.Items[bt.Order]
+			index = index - bt.Order
+
+			copy(newPage.Items, page.Items[bt.Order+1:])
+			newPage.Items[index] = newItem
+			copy(newPage.Items[index+1:], page.Items[index+1+bt.Order:])
+		}
+		page.Items = page.Items[:bt.Order]
+
+		newPage.ChildPage0 = item.ChildPage
+		item.ChildPage = newPage
+
 		newItem = item
 	}
 
 	prev := bt.Root
-	bt.Root = bt.newPage()
+	bt.Root = bt.newPage(1)
 	bt.Root.ChildPage0 = prev
-	bt.Root.Items = bt.Root.Items[:1]
 	bt.Root.Items[0] = item
 }
 
