@@ -27,7 +27,10 @@ type Btree struct {
 	/* TODO(anton2920): add more appropriate fields. */
 }
 
-func bsearchItems(page *Page, key K) (l int, r int, k int) {
+const DefaultBtreeOrder = 8
+
+/*
+func searchItems(page *Page, key K) (int, bool) {
 	l = 0
 	r = len(page.Items) - 1
 	for {
@@ -44,6 +47,21 @@ func bsearchItems(page *Page, key K) (l int, r int, k int) {
 	}
 	return
 }
+*/
+
+/* findOnPage returns index of element whose key is <= 'key'. Returns true, if ==. */
+func findOnPage(page *Page, key K) (int, bool) {
+	index := -1
+	for i := 0; i < len(page.Items); i++ {
+		if key >= page.Items[i].Key {
+			index = i
+			if key == page.Items[i].Key {
+				return index, true
+			}
+		}
+	}
+	return index, false
+}
 
 func (bt *Btree) newPage() *Page {
 	return &Page{Items: make([]Item, 0, bt.Order*2)}
@@ -52,79 +70,67 @@ func (bt *Btree) newPage() *Page {
 /* set returns whether tree needs to grow. */
 func (bt *Btree) set(page *Page, key K, value V) (item Item, shouldGrow bool) {
 	if page == nil {
-		/* Item with key 'key' is not in tree. */
 		return Item{Key: key, Value: value}, true
 	}
 
-	/* TODO(anton2920): don't return l. */
-	l, r, _ := bsearchItems(page, key)
-	if l-r > 1 {
-		/* Found. */
-		shouldGrow = false
+	index, ok := findOnPage(page, key)
+	if ok {
+		return Item{}, false
+	}
+
+	var childPage *Page
+	if index == -1 {
+		childPage = page.ChildPage0
 	} else {
-		/* Item is not on this page */
-		var childPage *Page
-		var newItem Item
+		childPage = page.Items[index].ChildPage
+	}
 
-		if r == -1 {
-			childPage = page.ChildPage0
+	newItem, shouldGrow := bt.set(childPage, key, value)
+	if shouldGrow {
+		if len(page.Items) < bt.Order*2 {
+			/* Insert 'newItem' to the right of 'page.Items[index]'. */
+			page.Items = page.Items[:len(page.Items)+1]
+			copy(page.Items[index+2:], page.Items[index+1:])
+			page.Items[index+1] = newItem
+			shouldGrow = false
 		} else {
-			childPage = page.Items[r].ChildPage
-		}
-
-		newItem, shouldGrow = bt.set(childPage, key, value)
-		if shouldGrow {
-			if len(page.Items) < bt.Order*2 {
-				/* Insert 'newItem' to the right of 'page.Items[r]'. */
-				page.Items = append(page.Items, Item{})
-				for i := len(page.Items) - 1; i > r+1; i-- {
-					page.Items[i] = page.Items[i-1]
-				}
-				page.Items[r+1] = newItem
-				shouldGrow = false
-			} else {
-				/* 'page' is full; split it and assign emerging Item to 'item'. */
-				newPage := bt.newPage()
-				if r <= bt.Order-1 {
-					if r == bt.Order-1 {
-						item = newItem
-					} else {
-						item = page.Items[bt.Order-1]
-						for i := bt.Order - 1; i > r+1; i-- {
-							page.Items[i] = page.Items[i-1]
-						}
-						page.Items[r+1] = newItem
-					}
-
-					newPage.Items = newPage.Items[:bt.Order]
-					for i := 0; i < bt.Order; i++ {
-						newPage.Items[i] = page.Items[i+bt.Order]
-					}
+			/* 'page' is full; split it and assign emerging Item to 'item'. */
+			newPage := bt.newPage()
+			if index <= bt.Order-1 {
+				if index == bt.Order-1 {
+					item = newItem
 				} else {
-					/* Insert 'newItem' in right page. */
-					r = r - bt.Order
-					item = page.Items[bt.Order]
-
-					newPage.Items = newPage.Items[:bt.Order]
-					for i := 0; i < r; i++ {
-						newPage.Items[i] = page.Items[i+bt.Order+1]
-					}
-					newPage.Items[r] = newItem
-					for i := r + 1; i < bt.Order; i++ {
-						newPage.Items[i] = page.Items[i+bt.Order]
-					}
+					item = page.Items[bt.Order-1]
+					copy(page.Items[index+2:bt.Order], page.Items[index+1:])
+					page.Items[index+1] = newItem
 				}
-				page.Items = page.Items[:bt.Order]
 
-				newPage.ChildPage0 = item.ChildPage
-				item.ChildPage = newPage
+				newPage.Items = newPage.Items[:bt.Order]
+				copy(newPage.Items, page.Items[bt.Order:])
+			} else {
+				/* Insert 'newItem' in right page. */
+				item = page.Items[bt.Order]
+				index = index - bt.Order
+
+				newPage.Items = newPage.Items[:bt.Order]
+				copy(newPage.Items, page.Items[bt.Order+1:])
+				newPage.Items[index] = newItem
+				copy(newPage.Items[index+1:], page.Items[index+1+bt.Order:])
 			}
+			page.Items = page.Items[:bt.Order]
+
+			newPage.ChildPage0 = item.ChildPage
+			item.ChildPage = newPage
 		}
 	}
 	return
 }
 
 func (bt *Btree) Set(k K, v V) {
+	if bt.Order == 0 {
+		bt.Order = DefaultBtreeOrder
+	}
+
 	item, shouldGrow := bt.set(bt.Root, k, v)
 	if shouldGrow {
 		prev := bt.Root

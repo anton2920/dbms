@@ -1,10 +1,12 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"math/rand"
+)
 
 func main() {
 	var bt Btree
-	bt.Order = 2
 
 	/* 20; 40 10 30 15; 35 7 26 18 22; 5; 42 13 46 27 8 32; 38 24 45 25; */
 	println("INSERT 1!!!")
@@ -36,6 +38,14 @@ func main() {
 	bt.Root = nil
 	for i := 0; i <= 10; i++ {
 		bt.Set(K(i), 0)
+		fmt.Println(bt)
+	}
+
+	println("INSERT 3!!!")
+	bt.Root = nil
+	rng := rand.New(rand.NewSource(123))
+	for i := 0; i <= 10; i++ {
+		bt.Set(K(rng.Int()%100), 0)
 		fmt.Println(bt)
 	}
 }
