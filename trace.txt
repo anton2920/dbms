@@ -1,0 +1,5 @@
+[gofa/trace]: Total time: 1974.4008ms
+[gofa/trace]: 	 _/home/anton/Projects/db.(*Btree).Set[2629570]: flat: [272.3475ms 13.79% 103.57ns/op], cum [1789.3337ms 90.63% 680.47ns/op]
+[gofa/trace]: 	 _/home/anton/Projects/db.(*Btree).Set-Search[2629570]: flat: [1257.1873ms 63.67% 478.10ns/op]
+[gofa/trace]: 	 _/home/anton/Projects/db.(*Btree).Set-Insert[2629570]: flat: [259.7988ms 13.16% 98.80ns/op]
+[gofa/trace]: 	 = Grand total[7888710]: flat: [1789.3337ms 90.63% 226.82ns/op]

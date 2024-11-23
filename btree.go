@@ -15,8 +15,7 @@ type Item struct {
 }
 
 type Page struct {
-	Items      []Item
-	ChildPage0 *Page
+	Items []Item
 }
 
 type PathItem struct {
@@ -41,7 +40,7 @@ func findOnPage(page *Page, key K) (int, bool) {
 	if key >= page.Items[len(page.Items)-1].Key {
 		return len(page.Items) - 1, key == page.Items[len(page.Items)-1].Key
 	}
-	for i := 0; i < len(page.Items); i++ {
+	for i := 1; i < len(page.Items); i++ {
 		if key <= page.Items[i].Key {
 			return i - 1, key == page.Items[i].Key
 		}
@@ -50,67 +49,69 @@ func findOnPage(page *Page, key K) (int, bool) {
 }
 
 func (bt *Btree) newPage(l int) *Page {
-	return &Page{Items: make([]Item, l, bt.Order*2)}
+	return &Page{Items: make([]Item, l+1, bt.Order*2+1)}
 }
 
 func (bt *Btree) Set(key K, value V) {
+	//defer trace.End(trace.Begin(""))
+
 	if bt.Order == 0 {
 		bt.Order = DefaultBtreeOrder
 	}
 	bt.SearchPath = bt.SearchPath[:0]
 
+	//t := trace.Begin("_/home/anton/Projects/db.(*Btree).Set-Search")
 	page := bt.Root
 	for page != nil {
 		index, ok := findOnPage(page, key)
 		if ok {
+			//trace.End(t)
 			return
 		}
 
-		var childPage *Page
-		if index == -1 {
-			childPage = page.ChildPage0
-		} else {
-			childPage = page.Items[index].ChildPage
-		}
+		childPage := page.Items[index].ChildPage
 		bt.SearchPath = append(bt.SearchPath, PathItem{Page: page, Index: index})
 		page = childPage
 	}
+	//trace.End(t)
 	newItem := Item{Key: key, Value: value}
 
+	//t = trace.Begin("_/home/anton/Projects/db.(*Btree).Set-Insert")
 	item := newItem
 	for p := len(bt.SearchPath) - 1; p >= 0; p-- {
 		index := bt.SearchPath[p].Index
 		page := bt.SearchPath[p].Page
 
-		if len(page.Items) < bt.Order*2 {
+		if len(page.Items)-1 < bt.Order*2 {
 			/* Insert 'newItem' to the right of 'page.Items[index]'. */
 			page.Items = page.Items[:len(page.Items)+1]
 			copy(page.Items[index+2:], page.Items[index+1:])
 			page.Items[index+1] = newItem
+			//trace.End(t)
 			return
 		}
 
 		/* 'page' is full; split it and assign emerging Item to 'item'. */
 		newPage := bt.newPage(bt.Order)
-		if index <= bt.Order-1 {
-			if index < bt.Order-1 {
-				item = page.Items[bt.Order-1]
-				copy(page.Items[index+2:bt.Order], page.Items[index+1:])
+		if index <= bt.Order {
+			if index < bt.Order {
+				item = page.Items[bt.Order]
+				copy(page.Items[index+2:bt.Order+1], page.Items[index+1:])
 				page.Items[index+1] = newItem
 			}
-			copy(newPage.Items, page.Items[bt.Order:])
+			copy(newPage.Items[1:], page.Items[bt.Order+1:])
 		} else {
 			/* Insert 'newItem' in right page. */
-			item = page.Items[bt.Order]
+			item = page.Items[bt.Order+1]
 			index = index - bt.Order
 
-			copy(newPage.Items, page.Items[bt.Order+1:])
+			copy(newPage.Items[1:], page.Items[bt.Order+2:])
 			newPage.Items[index] = newItem
 			copy(newPage.Items[index+1:], page.Items[index+1+bt.Order:])
 		}
-		page.Items = page.Items[:bt.Order]
+		page.Items = page.Items[:bt.Order+1]
 
-		newPage.ChildPage0 = item.ChildPage
+		newPage.Items[0].ChildPage = item.ChildPage
 		item.ChildPage = newPage
 
 		newItem = item
@@ -118,8 +119,10 @@ func (bt *Btree) Set(key K, value V) {
 
 	prev := bt.Root
 	bt.Root = bt.newPage(1)
-	bt.Root.ChildPage0 = prev
-	bt.Root.Items[0] = item
+	bt.Root.Items[0].ChildPage = prev
+	bt.Root.Items[1] = item
+
+	// trace.End(t)
 }
 
 func (bt *Btree) stringImpl(sb *strings.Builder, page *Page, level int) {
@@ -127,12 +130,11 @@ func (bt *Btree) stringImpl(sb *strings.Builder, page *Page, level int) {
 		for i := 0; i < level; i++ {
 			sb.WriteRune('\t')
 		}
-		for i := 0; i < len(page.Items); i++ {
+		for i := 1; i < len(page.Items); i++ {
 			fmt.Fprintf(sb, "%4d", page.Items[i].Key)
 		}
 		sb.WriteRune('\n')
 
-		bt.stringImpl(sb, page.ChildPage0, level+1)
 		for i := 0; i < len(page.Items); i++ {
 			bt.stringImpl(sb, page.Items[i].ChildPage, level+1)
 		}
