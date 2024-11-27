@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 )
 
 func main() {
@@ -18,22 +17,13 @@ func main() {
 	}
 
 	/* 25 45 24; 38 32; 8 27 46 13 42; 5 22 18 26; 7 35 15; */
-	//	println("DELETE!!!")
-	//	//runtime.Breakpoint()
-	//	del := [...]int{25, 45, 24, 38, 32, 8, 27, 46, 13, 42, 5, 22, 18, 26, 7, 35, 15}
-	//	for _, number := range del {
-	//		x = K(number)
-	//		delete(x, root, &h)
-	//		if h {
-	//			/* base page size was reduced. */
-	//			if root.m == 0 {
-	//				q = root
-	//				root = q.p0
-	//			}
-	//		}
-	//		printtree(root, 1)
-	//		println()
-	//	}
+	println("DELETE!!!")
+	// runtime.Breakpoint()
+	deleleKeys := [...]K{25, 45, 24, 38, 32, 8, 27, 46, 13, 42, 5, 22, 18, 26, 7, 35, 15}
+	for _, key := range deleleKeys {
+		bt.Del(key)
+		fmt.Println(bt)
+	}
 
 	println("INSERT 2!!!")
 	bt.Root = nil
@@ -42,11 +32,12 @@ func main() {
 		fmt.Println(bt)
 	}
 
-	println("INSERT 3!!!")
-	bt.Root = nil
-	rng := rand.New(rand.NewSource(123))
-	for i := 0; i <= 100; i++ {
-		bt.Set(K(rng.Int()%100), 0)
-		fmt.Println(bt)
-	}
+	// println("INSERT 3!!!")
+	// bt.Root = nil
+	// rng := rand.New(rand.NewSource(123))
+	//
+	//	for i := 0; i <= 100; i++ {
+	//		bt.Set(K(rng.Int()%100), 0)
+	//		fmt.Println(bt)
+	//	}
 }

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-PROJECT=db
+PROJECT=dbms
 
 VERBOSITY=0
 VERBOSITYFLAGS=""

@@ -49,6 +49,161 @@ func findOnPage(page *Page, key K) (int, bool) {
 	return len(page.Items) - 1, false
 }
 
+func removeItemAtIndex(vs []Item, i int) []Item {
+	if (len(vs) == 0) || (i < 0) || (i >= len(vs)) {
+		return vs
+	}
+	if i < len(vs)-1 {
+		copy(vs[i:], vs[i+1:])
+	}
+	return vs[:len(vs)-1]
+}
+
+func mergePageItems(self []Item, other []Item) []Item {
+	if (len(self) > 0) && (len(other) > 0) && (self[0].Key > other[0].Key) {
+		self, other = other, self
+	}
+	l := len(self)
+	self = self[:len(self)+len(other)]
+	copy(self[l:], other)
+
+	return self
+}
+
+func (bt *Btree) underflow(rootPage *Page, page *Page, index int, shouldShrink *bool) {
+	if index < len(rootPage.Items)-1 {
+		rightPage := rootPage.Items[index+1].ChildPage
+		nitems := len(rightPage.Items)
+
+		/* NOTE(anton2920): ??? */
+		page.Items[bt.Order-1] = rootPage.Items[index+1]
+		page.Items[bt.Order-1].ChildPage = rightPage.ChildPage0
+
+		k := (nitems - bt.Order + 1) / 2
+		if k > 0 {
+			/* Move 'k' Items from 'rightPage' to 'page'. */
+			page.Items = page.Items[:bt.Order+k]
+			copy(page.Items[bt.Order:], rightPage.Items[:k])
+			copy(rightPage.Items, rightPage.Items[k-1:])
+			rightPage.Items = rightPage.Items[:len(rightPage.Items)-k]
+
+			/* NOTE(anton2920): ??? */
+			rootPage.Items[index+1] = rightPage.Items[0]
+			rootPage.Items[index+1].ChildPage = rightPage
+			rightPage.ChildPage0 = rightPage.Items[0].ChildPage
+
+			*shouldShrink = false
+		} else {
+			page.Items = mergePageItems(page.Items, rightPage.Items)
+			rootPage.Items = removeItemAtIndex(rootPage.Items, index+1)
+			/* dispose(rightPage) */
+		}
+	} else {
+		var leftPage *Page
+		if index == 0 {
+			leftPage = rootPage.ChildPage0
+		} else {
+			leftPage = rootPage.Items[index-1].ChildPage
+		}
+		nitems := len(leftPage.Items)
+
+		k := (nitems - bt.Order + 1) / 2
+		if k > 0 {
+			/* Move 'k' Items from 'leftPage' to 'page'. */
+			page.Items = page.Items[:bt.Order+k-1]
+			copy(page.Items[k-1:], page.Items)
+			copy(page.Items, leftPage.Items[:k])
+			leftPage.Items = leftPage.Items[:nitems-k]
+
+			/* NOTE(anton2920): ??? */
+			page.Items[k-1] = rootPage.Items[index]
+			page.Items[k-1].ChildPage = page.ChildPage0
+
+			nitems = nitems - k - 1
+
+			/* NOTE(anton2920): ??? */
+			page.ChildPage0 = leftPage.Items[len(leftPage.Items)-1].ChildPage
+			rootPage.Items[index] = leftPage.Items[nitems]
+			rootPage.Items[index].ChildPage = page
+
+			*shouldShrink = false
+		} else {
+			/* NOTE(anton2920): ??? */
+			leftPage.Items[nitems-1] = rootPage.Items[index]
+			leftPage.Items[nitems-1].ChildPage = page.ChildPage0
+
+			leftPage.Items = mergePageItems(leftPage.Items, page.Items)
+			rootPage.Items = removeItemAtIndex(rootPage.Items, index)
+			/* dispose(page) */
+		}
+	}
+}
+
+func (bt *Btree) delete(key K, page *Page, shouldShrink *bool) {
+	var childPage *Page
+
+	var del func(*Page, *Page, int, *bool)
+	del = func(rootPage *Page, page *Page, index int, shouldShrink *bool) {
+		childPage := page.Items[len(page.Items)-1].ChildPage
+		if childPage != nil {
+			del(rootPage, childPage, index, shouldShrink)
+			if *shouldShrink {
+				bt.underflow(page, childPage, len(page.Items)-1, shouldShrink)
+			}
+		} else {
+			page.Items[len(page.Items)-1].ChildPage = rootPage.Items[index].ChildPage
+			rootPage.Items[index] = page.Items[len(page.Items)-1]
+			page.Items = page.Items[:len(page.Items)-1]
+			*shouldShrink = len(page.Items) < bt.Order
+		}
+	}
+
+	if page == nil {
+		/* key is not there. */
+		*shouldShrink = false
+		return
+	}
+
+	index, ok := findOnPage(page, key)
+	if index == -1 {
+		childPage = page.ChildPage0
+	} else {
+		childPage = page.Items[index].ChildPage
+	}
+	if ok {
+		/* Found, now delete page.Items[index+1]. */
+		if childPage == nil {
+			/* 'page' is a terminal page. */
+			page.Items = removeItemAtIndex(page.Items, index+1)
+			*shouldShrink = len(page.Items) < bt.Order
+		} else {
+			del(page, childPage, index, shouldShrink)
+			if *shouldShrink {
+				bt.underflow(page, childPage, index, shouldShrink)
+			}
+		}
+	} else {
+		bt.delete(key, childPage, shouldShrink)
+		if *shouldShrink {
+			bt.underflow(page, childPage, index, shouldShrink)
+		}
+	}
+}
+
+func (bt *Btree) Del(key K) {
+	var shouldShrink bool
+
+	bt.delete(key, bt.Root, &shouldShrink)
+	if shouldShrink {
+		/* base page size was reduced. */
+		if len(bt.Root.Items) == 0 {
+			tmp := bt.Root
+			bt.Root = tmp.ChildPage0
+		}
+
+	}
+}
+
 func (bt *Btree) newPage(l int) *Page {
 	return &Page{Items: make([]Item, l, bt.Order*2)}
 }
@@ -116,9 +271,9 @@ func (bt *Btree) Set(key K, value V) {
 		newItem = item
 	}
 
-	prev := bt.Root
+	tmp := bt.Root
 	bt.Root = bt.newPage(1)
-	bt.Root.ChildPage0 = prev
+	bt.Root.ChildPage0 = tmp
 	bt.Root.Items[0] = item
 }
 
@@ -146,153 +301,3 @@ func (bt Btree) String() string {
 
 	return sb.String()
 }
-
-//func delete(x K, a ref, h *bool) {
-//	var k, l, r int
-//	var q ref
-//
-//	underflow := func(c ref, a ref, s int, h *bool) {
-//		/* a = underflow page, c = ancestor page. */
-//		var k, mb, mc int
-//		var b ref
-//
-//		/* h = true, a.m = n - 1. */
-//		mc = c.m
-//		if s < mc {
-//			/* b = page to the right of a. */
-//			s++
-//			b = c.e[s].ChildPage
-//			mb = b.m
-//			k = (mb - n + 1) / 2
-//			/* k = no. of Items available on adjacent page b. */
-//			a.e[n] = c.e[s]
-//			a.e[n].ChildPage = b.ChildPage0
-//			if k > 0 {
-//				/* move k Items from b to a. */
-//				for i := 1; i <= k-1; i++ {
-//					a.e[i+n] = b.e[i]
-//				}
-//				c.e[s] = b.e[k]
-//				c.e[s].ChildPage = b
-//
-//				b.ChildPage0 = b.e[k].ChildPage
-//				mb = mb - k
-//
-//				for i := 1; i <= mb; i++ {
-//					b.e[i] = b.e[i+k]
-//				}
-//				b.m = mb
-//				a.m = n - 1 + k
-//				*h = false
-//			} else {
-//				/* merge pages a and b. */
-//				for i := 1; i <= n; i++ {
-//					a.e[i+n] = b.e[i]
-//				}
-//				for i := s; i <= mc-1; i++ {
-//					c.e[i] = c.e[i+1]
-//				}
-//				a.m = nn
-//				c.m = mc - 1
-//			}
-//		} else {
-//			/* b = page to the left of a. */
-//			if s == 1 {
-//				b = c.ChildPage0
-//			} else {
-//				b = c.e[s-1].ChildPage
-//			}
-//			mb = b.m + 1
-//			k = (mb - n) / 2
-//			if k > 0 {
-//				/* move k Items from page b to a. */
-//				for i := n - 1; i >= 1; i-- {
-//					a.e[i+k] = a.e[i]
-//				}
-//				a.e[k] = c.e[s]
-//				a.e[k].ChildPage = a.ChildPage0
-//				mb = mb - k
-//				for i := k - 1; i >= 1; i-- {
-//					a.e[i] = b.e[i+mb]
-//				}
-//				a.ChildPage0 = b.e[mb].ChildPage
-//				c.e[s] = b.e[mb]
-//				c.e[s].ChildPage = a
-//				b.m = mb - 1
-//				a.m = n - 1 + k
-//				*h = false
-//			} else {
-//				/* merge pages a and b. */
-//				b.e[mb] = c.e[s]
-//				b.e[mb].ChildPage = a.ChildPage0
-//				for i := 1; i <= n-1; i++ {
-//					b.e[i+mb] = a.e[i]
-//				}
-//				b.m = nn
-//				c.m = mc - 1
-//			}
-//		}
-//	}
-//
-//	var del func(p ref, h *bool)
-//	del = func(p ref, h *bool) {
-//		q := p.e[p.m].ChildPage
-//		if q != nil {
-//			del(q, h)
-//			if *h {
-//				underflow(p, q, p.m, h)
-//			}
-//		} else {
-//			p.e[p.m].ChildPage = a.e[k].ChildPage
-//			a.e[k] = p.e[p.m]
-//			p.m--
-//			*h = p.m < n
-//		}
-//	}
-//
-//	if a == nil {
-//		/* key is not there. */
-//		*h = false
-//	} else {
-//		l = 1
-//		r = a.m
-//		for {
-//			k = (l + r) / 2
-//			if x <= a.e[k].key {
-//				r = k - 1
-//			}
-//			if x >= a.e[k].key {
-//				l = k + 1
-//			}
-//			if l > r {
-//				break
-//			}
-//		}
-//		if r == 0 {
-//			q = a.ChildPage0
-//		} else {
-//			q = a.e[r].ChildPage
-//		}
-//		if l-r > 1 {
-//			/* Found, now delete a.e[k]. */
-//			if q == nil {
-//				/* a is a terminal page. */
-//				a.m--
-//				*h = a.m < n
-//				for i := k; i <= a.m; i++ {
-//					a.e[i] = a.e[i+1]
-//				}
-//			} else {
-//				del(q, h)
-//				if *h {
-//					underflow(a, q, r, h)
-//				}
-//			}
-//		} else {
-//			delete(x, q, h)
-//			if *h {
-//				underflow(a, q, r, h)
-//			}
-//		}
-//	}
-//}
