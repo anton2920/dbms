@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	"github.com/anton2920/gofa/util"
 )
 
 type K int
@@ -39,7 +41,8 @@ const DefaultBtreeOrder = 8
 /* findOnPage returns index of element whose key is <= 'key'. Returns true, if ==. */
 func findOnPage(page *Page, key K) (int, bool) {
 	if key >= page.Items[len(page.Items)-1].Key {
-		return len(page.Items) - 1, key == page.Items[len(page.Items)-1].Key
+		eq := key == page.Items[len(page.Items)-1].Key
+		return len(page.Items) - 1 - util.Bool2Int(eq), eq
 	}
 	for i := 0; i < len(page.Items); i++ {
 		if key <= page.Items[i].Key {
@@ -73,24 +76,23 @@ func mergePageItems(self []Item, other []Item) []Item {
 func (bt *Btree) underflow(rootPage *Page, page *Page, index int, shouldShrink *bool) {
 	if index < len(rootPage.Items)-1 {
 		rightPage := rootPage.Items[index+1].ChildPage
-		nitems := len(rightPage.Items)
 
-		/* NOTE(anton2920): ??? */
+		page.Items = page.Items[:bt.Order]
 		page.Items[bt.Order-1] = rootPage.Items[index+1]
 		page.Items[bt.Order-1].ChildPage = rightPage.ChildPage0
 
-		k := (nitems - bt.Order + 1) / 2
+		k := (len(rightPage.Items) - bt.Order + 1) / 2
 		if k > 0 {
-			/* Move 'k' Items from 'rightPage' to 'page'. */
-			page.Items = page.Items[:bt.Order+k]
-			copy(page.Items[bt.Order:], rightPage.Items[:k])
-			copy(rightPage.Items, rightPage.Items[k-1:])
-			rightPage.Items = rightPage.Items[:len(rightPage.Items)-k]
-
-			/* NOTE(anton2920): ??? */
-			rootPage.Items[index+1] = rightPage.Items[0]
+			rootPage.Items[index+1] = rightPage.Items[k-1]
 			rootPage.Items[index+1].ChildPage = rightPage
-			rightPage.ChildPage0 = rightPage.Items[0].ChildPage
+			rightPage.ChildPage0 = rightPage.Items[k-1].ChildPage
+
+			/* Move 'k'-1 Items from 'rightPage' to 'page'. */
+			page.Items = page.Items[:len(page.Items)+k-1]
+			copy(page.Items[bt.Order:], rightPage.Items[:k-1])
+
+			copy(rightPage.Items, rightPage.Items[k:])
+			rightPage.Items = rightPage.Items[:len(rightPage.Items)-k]
 
 			*shouldShrink = false
 		} else {
@@ -105,32 +107,30 @@ func (bt *Btree) underflow(rootPage *Page, page *Page, index int, shouldShrink *
 		} else {
 			leftPage = rootPage.Items[index-1].ChildPage
 		}
-		nitems := len(leftPage.Items)
 
-		k := (nitems - bt.Order + 1) / 2
+		k := (len(leftPage.Items) - bt.Order + 1) / 2
 		if k > 0 {
-			/* Move 'k' Items from 'leftPage' to 'page'. */
-			page.Items = page.Items[:bt.Order+k-1]
-			copy(page.Items[k-1:], page.Items)
-			copy(page.Items, leftPage.Items[:k])
-			leftPage.Items = leftPage.Items[:nitems-k]
+			/* Prepare space for 'k' items in the front of the page. */
+			page.Items = page.Items[:len(page.Items)+k]
+			copy(page.Items[bt.Order-1:], page.Items[:k])
 
-			/* NOTE(anton2920): ??? */
+			/* Move 1 item from 'rootPage' to 'page'. */
 			page.Items[k-1] = rootPage.Items[index]
 			page.Items[k-1].ChildPage = page.ChildPage0
+			page.ChildPage0 = leftPage.Items[len(leftPage.Items)-k].ChildPage
 
-			nitems = nitems - k - 1
-
-			/* NOTE(anton2920): ??? */
-			page.ChildPage0 = leftPage.Items[len(leftPage.Items)-1].ChildPage
-			rootPage.Items[index] = leftPage.Items[nitems]
+			rootPage.Items[index] = leftPage.Items[len(leftPage.Items)-k]
 			rootPage.Items[index].ChildPage = page
+
+			/* Move 'k'-1 Items from 'leftPage' to 'page'. */
+			copy(page.Items, leftPage.Items[len(leftPage.Items)-k:len(leftPage.Items)-1])
+			leftPage.Items = leftPage.Items[:len(leftPage.Items)-k]
 
 			*shouldShrink = false
 		} else {
-			/* NOTE(anton2920): ??? */
-			leftPage.Items[nitems-1] = rootPage.Items[index]
-			leftPage.Items[nitems-1].ChildPage = page.ChildPage0
+			leftPage.Items = leftPage.Items[:len(leftPage.Items)+1]
+			leftPage.Items[len(leftPage.Items)-1] = rootPage.Items[index]
+			leftPage.Items[len(leftPage.Items)-1].ChildPage = page.ChildPage0
 
 			leftPage.Items = mergePageItems(leftPage.Items, page.Items)
 			rootPage.Items = removeItemAtIndex(rootPage.Items, index)
@@ -177,7 +177,7 @@ func (bt *Btree) delete(key K, page *Page, shouldShrink *bool) {
 			page.Items = removeItemAtIndex(page.Items, index+1)
 			*shouldShrink = len(page.Items) < bt.Order
 		} else {
-			del(page, childPage, index, shouldShrink)
+			del(page, childPage, index+1, shouldShrink)
 			if *shouldShrink {
 				bt.underflow(page, childPage, index, shouldShrink)
 			}
