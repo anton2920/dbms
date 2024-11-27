@@ -20,6 +20,7 @@ func main() {
 	println("DELETE!!!")
 	deleleKeys := [...]K{25, 45, 24, 38, 32, 8, 27, 46, 13, 42, 5, 22, 18, 26, 7, 35, 15}
 	for _, key := range deleleKeys {
+		fmt.Println(key)
 		bt.Del(key)
 		fmt.Println(bt)
 	}
@@ -28,6 +29,12 @@ func main() {
 	bt.Root = nil
 	for i := 0; i <= 10; i++ {
 		bt.Set(K(i), 0)
+		fmt.Println(bt)
+	}
+
+	println("DELETE 2!!!")
+	for i := 0; i <= 10; i++ {
+		bt.Del(K(i))
 		fmt.Println(bt)
 	}
 

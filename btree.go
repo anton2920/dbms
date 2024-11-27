@@ -22,8 +22,9 @@ type Page struct {
 }
 
 type PathItem struct {
-	Page  *Page
-	Index int
+	Page      *Page
+	ChildPage *Page
+	Index     int
 }
 
 type Btree struct {
@@ -73,134 +74,133 @@ func mergePageItems(self []Item, other []Item) []Item {
 	return self
 }
 
-func (bt *Btree) underflow(rootPage *Page, page *Page, index int, shouldShrink *bool) {
-	if index < len(rootPage.Items)-1 {
-		rightPage := rootPage.Items[index+1].ChildPage
-
-		page.Items = page.Items[:bt.Order]
-		page.Items[bt.Order-1] = rootPage.Items[index+1]
-		page.Items[bt.Order-1].ChildPage = rightPage.ChildPage0
-
-		k := (len(rightPage.Items) - bt.Order + 1) / 2
-		if k > 0 {
-			rootPage.Items[index+1] = rightPage.Items[k-1]
-			rootPage.Items[index+1].ChildPage = rightPage
-			rightPage.ChildPage0 = rightPage.Items[k-1].ChildPage
-
-			/* Move 'k'-1 Items from 'rightPage' to 'page'. */
-			page.Items = page.Items[:len(page.Items)+k-1]
-			copy(page.Items[bt.Order:], rightPage.Items[:k-1])
-
-			copy(rightPage.Items, rightPage.Items[k:])
-			rightPage.Items = rightPage.Items[:len(rightPage.Items)-k]
-
-			*shouldShrink = false
-		} else {
-			page.Items = mergePageItems(page.Items, rightPage.Items)
-			rootPage.Items = removeItemAtIndex(rootPage.Items, index+1)
-			/* dispose(rightPage) */
-		}
-	} else {
-		var leftPage *Page
-		if index == 0 {
-			leftPage = rootPage.ChildPage0
-		} else {
-			leftPage = rootPage.Items[index-1].ChildPage
-		}
-
-		k := (len(leftPage.Items) - bt.Order + 1) / 2
-		if k > 0 {
-			/* Prepare space for 'k' items in the front of the page. */
-			page.Items = page.Items[:len(page.Items)+k]
-			copy(page.Items[bt.Order-1:], page.Items[:k])
-
-			/* Move 1 item from 'rootPage' to 'page'. */
-			page.Items[k-1] = rootPage.Items[index]
-			page.Items[k-1].ChildPage = page.ChildPage0
-			page.ChildPage0 = leftPage.Items[len(leftPage.Items)-k].ChildPage
-
-			rootPage.Items[index] = leftPage.Items[len(leftPage.Items)-k]
-			rootPage.Items[index].ChildPage = page
-
-			/* Move 'k'-1 Items from 'leftPage' to 'page'. */
-			copy(page.Items, leftPage.Items[len(leftPage.Items)-k:len(leftPage.Items)-1])
-			leftPage.Items = leftPage.Items[:len(leftPage.Items)-k]
-
-			*shouldShrink = false
-		} else {
-			leftPage.Items = leftPage.Items[:len(leftPage.Items)+1]
-			leftPage.Items[len(leftPage.Items)-1] = rootPage.Items[index]
-			leftPage.Items[len(leftPage.Items)-1].ChildPage = page.ChildPage0
-
-			leftPage.Items = mergePageItems(leftPage.Items, page.Items)
-			rootPage.Items = removeItemAtIndex(rootPage.Items, index)
-			/* dispose(page) */
-		}
-	}
-}
-
-func (bt *Btree) delete(key K, page *Page, shouldShrink *bool) {
-	var childPage *Page
-
-	var del func(*Page, *Page, int, *bool)
-	del = func(rootPage *Page, page *Page, index int, shouldShrink *bool) {
-		childPage := page.Items[len(page.Items)-1].ChildPage
-		if childPage != nil {
-			del(rootPage, childPage, index, shouldShrink)
-			if *shouldShrink {
-				bt.underflow(page, childPage, len(page.Items)-1, shouldShrink)
-			}
-		} else {
-			page.Items[len(page.Items)-1].ChildPage = rootPage.Items[index].ChildPage
-			rootPage.Items[index] = page.Items[len(page.Items)-1]
-			page.Items = page.Items[:len(page.Items)-1]
-			*shouldShrink = len(page.Items) < bt.Order
-		}
-	}
-
-	if page == nil {
-		/* key is not there. */
-		*shouldShrink = false
-		return
-	}
-
-	index, ok := findOnPage(page, key)
-	if index == -1 {
-		childPage = page.ChildPage0
-	} else {
-		childPage = page.Items[index].ChildPage
-	}
-	if ok {
-		/* Found, now delete page.Items[index+1]. */
-		if childPage == nil {
-			/* 'page' is a terminal page. */
-			page.Items = removeItemAtIndex(page.Items, index+1)
-			*shouldShrink = len(page.Items) < bt.Order
-		} else {
-			del(page, childPage, index+1, shouldShrink)
-			if *shouldShrink {
-				bt.underflow(page, childPage, index, shouldShrink)
-			}
-		}
-	} else {
-		bt.delete(key, childPage, shouldShrink)
-		if *shouldShrink {
-			bt.underflow(page, childPage, index, shouldShrink)
-		}
-	}
-}
-
 func (bt *Btree) Del(key K) {
-	var shouldShrink bool
+	var childPage *Page
+	var index int
+	var ok bool
 
-	bt.delete(key, bt.Root, &shouldShrink)
-	if shouldShrink {
-		/* base page size was reduced. */
-		if len(bt.Root.Items) == 0 {
-			tmp := bt.Root
-			bt.Root = tmp.ChildPage0
+	if bt.Order == 0 {
+		bt.Order = DefaultBtreeOrder
+	}
+	bt.SearchPath = bt.SearchPath[:0]
+
+	page := bt.Root
+	for {
+		if page == nil {
+			return
 		}
 
+		index, ok = findOnPage(page, key)
+		if index == -1 {
+			childPage = page.ChildPage0
+		} else {
+			childPage = page.Items[index].ChildPage
+		}
+
+		if ok {
+			break
+		}
+
+		bt.SearchPath = append(bt.SearchPath, PathItem{Page: page, ChildPage: childPage, Index: index})
+		page = childPage
+	}
+
+	/* Found, now delete page.Items[index+1]. */
+	if childPage == nil {
+		/* 'page' is a terminal page. */
+		page.Items = removeItemAtIndex(page.Items, index+1)
+	} else {
+		bt.SearchPath = append(bt.SearchPath, PathItem{Page: page, ChildPage: childPage, Index: index})
+		rootPage := page
+		page = childPage
+		for {
+			childPage := page.Items[len(page.Items)-1].ChildPage
+			if childPage != nil {
+				bt.SearchPath = append(bt.SearchPath, PathItem{Page: page, ChildPage: childPage, Index: len(page.Items) - 1})
+				page = childPage
+			} else {
+				page.Items[len(page.Items)-1].ChildPage = rootPage.Items[index+1].ChildPage
+				rootPage.Items[index+1] = page.Items[len(page.Items)-1]
+				page.Items = removeItemAtIndex(page.Items, len(page.Items)-1)
+				break
+			}
+		}
+	}
+
+	if len(page.Items) < bt.Order {
+		for p := len(bt.SearchPath) - 1; p >= 0; p-- {
+			item := &bt.SearchPath[p]
+			rootPage := item.Page
+			page := item.ChildPage
+			index := item.Index
+
+			if index < len(rootPage.Items)-1 {
+				rightPage := rootPage.Items[index+1].ChildPage
+
+				k := (len(rightPage.Items) - bt.Order + 1) / 2
+				if k > 0 {
+					page.Items = page.Items[:len(page.Items)+k]
+					copy(page.Items[bt.Order:], rightPage.Items[:k-1])
+
+					page.Items[bt.Order-1] = rootPage.Items[index+1]
+					page.Items[bt.Order-1].ChildPage = rightPage.ChildPage0
+
+					rootPage.Items[index+1] = rightPage.Items[k-1]
+					rootPage.Items[index+1].ChildPage = rightPage
+					rightPage.ChildPage0 = rightPage.Items[k-1].ChildPage
+
+					copy(rightPage.Items, rightPage.Items[k:])
+					rightPage.Items = rightPage.Items[:len(rightPage.Items)-k]
+					return
+				} else {
+					page.Items = page.Items[:bt.Order]
+					page.Items[bt.Order-1] = rootPage.Items[index+1]
+					page.Items[bt.Order-1].ChildPage = rightPage.ChildPage0
+
+					page.Items = mergePageItems(page.Items, rightPage.Items)
+					rootPage.Items = removeItemAtIndex(rootPage.Items, index+1)
+					/* dispose(rightPage) */
+				}
+			} else {
+				var leftPage *Page
+				if index == 0 {
+					leftPage = rootPage.ChildPage0
+				} else {
+					leftPage = rootPage.Items[index-1].ChildPage
+				}
+
+				k := (len(leftPage.Items) - bt.Order + 1) / 2
+				if k > 0 {
+					page.Items = page.Items[:len(page.Items)+k]
+					copy(page.Items[bt.Order-1:], page.Items[:k])
+
+					page.Items[k-1] = rootPage.Items[index]
+					page.Items[k-1].ChildPage = page.ChildPage0
+
+					rootPage.Items[index] = leftPage.Items[len(leftPage.Items)-k]
+					rootPage.Items[index].ChildPage = page
+					page.ChildPage0 = leftPage.Items[len(leftPage.Items)-k].ChildPage
+
+					copy(page.Items, leftPage.Items[len(leftPage.Items)-k:len(leftPage.Items)-1])
+					leftPage.Items = leftPage.Items[:len(leftPage.Items)-k]
+					return
+				} else {
+					leftPage.Items = leftPage.Items[:len(leftPage.Items)+1]
+					leftPage.Items[len(leftPage.Items)-1] = rootPage.Items[index]
+					leftPage.Items[len(leftPage.Items)-1].ChildPage = page.ChildPage0
+
+					leftPage.Items = mergePageItems(leftPage.Items, page.Items)
+					rootPage.Items = removeItemAtIndex(rootPage.Items, index)
+					/* dispose(page) */
+				}
+			}
+		}
+	}
+
+	/* Base page size was reduced. */
+	if len(bt.Root.Items) == 0 {
+		tmp := bt.Root
+		bt.Root = tmp.ChildPage0
 	}
 }
 
