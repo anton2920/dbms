@@ -94,7 +94,7 @@ func (bt *Btree) Get(key K) V {
 	for page != nil {
 		index, ok := findOnPage(page, key)
 		if ok {
-			return page.Items[index].Value
+			return page.Items[index+1].Value
 		}
 
 		if index == -1 {
@@ -164,73 +164,74 @@ func (bt *Btree) Del(key K) {
 			page := item.ChildPage
 			index := item.Index
 
-			if index < len(rootPage.Items)-1 {
-				rightPage := rootPage.Items[index+1].ChildPage
+			if len(page.Items) < bt.Order {
+				if index < len(rootPage.Items)-1 {
+					rightPage := rootPage.Items[index+1].ChildPage
 
-				k := (len(rightPage.Items) - bt.Order + 1) / 2
-				if k > 0 {
-					page.Items = page.Items[:len(page.Items)+k]
-					copy(page.Items[bt.Order:], rightPage.Items[:k-1])
+					k := (len(rightPage.Items) - bt.Order + 1) / 2
+					if k > 0 {
+						page.Items = page.Items[:len(page.Items)+k]
+						copy(page.Items[bt.Order:], rightPage.Items[:k-1])
 
-					page.Items[bt.Order-1] = rootPage.Items[index+1]
-					page.Items[bt.Order-1].ChildPage = rightPage.ChildPage0
+						page.Items[bt.Order-1] = rootPage.Items[index+1]
+						page.Items[bt.Order-1].ChildPage = rightPage.ChildPage0
 
-					rootPage.Items[index+1] = rightPage.Items[k-1]
-					rootPage.Items[index+1].ChildPage = rightPage
-					rightPage.ChildPage0 = rightPage.Items[k-1].ChildPage
+						rootPage.Items[index+1] = rightPage.Items[k-1]
+						rootPage.Items[index+1].ChildPage = rightPage
+						rightPage.ChildPage0 = rightPage.Items[k-1].ChildPage
 
-					copy(rightPage.Items, rightPage.Items[k:])
-					rightPage.Items = rightPage.Items[:len(rightPage.Items)-k]
-					return
+						copy(rightPage.Items, rightPage.Items[k:])
+						rightPage.Items = rightPage.Items[:len(rightPage.Items)-k]
+						return
+					} else {
+						page.Items = page.Items[:bt.Order]
+						page.Items[bt.Order-1] = rootPage.Items[index+1]
+						page.Items[bt.Order-1].ChildPage = rightPage.ChildPage0
+
+						page.Items = mergePageItems(page.Items, rightPage.Items)
+						rootPage.Items = removeItemAtIndex(rootPage.Items, index+1)
+						/* dispose(rightPage) */
+					}
 				} else {
-					page.Items = page.Items[:bt.Order]
-					page.Items[bt.Order-1] = rootPage.Items[index+1]
-					page.Items[bt.Order-1].ChildPage = rightPage.ChildPage0
+					var leftPage *Page
+					if index == 0 {
+						leftPage = rootPage.ChildPage0
+					} else {
+						leftPage = rootPage.Items[index-1].ChildPage
+					}
 
-					page.Items = mergePageItems(page.Items, rightPage.Items)
-					rootPage.Items = removeItemAtIndex(rootPage.Items, index+1)
-					/* dispose(rightPage) */
-				}
-			} else {
-				var leftPage *Page
-				if index == 0 {
-					leftPage = rootPage.ChildPage0
-				} else {
-					leftPage = rootPage.Items[index-1].ChildPage
-				}
+					k := (len(leftPage.Items) - bt.Order + 1) / 2
+					if k > 0 {
+						page.Items = page.Items[:len(page.Items)+k]
+						copy(page.Items[k:], page.Items[:bt.Order])
 
-				k := (len(leftPage.Items) - bt.Order + 1) / 2
-				if k > 0 {
-					page.Items = page.Items[:len(page.Items)+k]
-					copy(page.Items[bt.Order-1:], page.Items[:k])
+						page.Items[k-1] = rootPage.Items[index]
+						page.Items[k-1].ChildPage = page.ChildPage0
 
-					page.Items[k-1] = rootPage.Items[index]
-					page.Items[k-1].ChildPage = page.ChildPage0
+						rootPage.Items[index] = leftPage.Items[len(leftPage.Items)-k]
+						rootPage.Items[index].ChildPage = page
+						page.ChildPage0 = leftPage.Items[len(leftPage.Items)-k].ChildPage
 
-					rootPage.Items[index] = leftPage.Items[len(leftPage.Items)-k]
-					rootPage.Items[index].ChildPage = page
-					page.ChildPage0 = leftPage.Items[len(leftPage.Items)-k].ChildPage
+						copy(page.Items, leftPage.Items[len(leftPage.Items)-(k-1):])
+						leftPage.Items = leftPage.Items[:len(leftPage.Items)-k]
+						return
+					} else {
+						leftPage.Items = leftPage.Items[:len(leftPage.Items)+1]
+						leftPage.Items[len(leftPage.Items)-1] = rootPage.Items[index]
+						leftPage.Items[len(leftPage.Items)-1].ChildPage = page.ChildPage0
 
-					copy(page.Items, leftPage.Items[len(leftPage.Items)-k:len(leftPage.Items)-1])
-					leftPage.Items = leftPage.Items[:len(leftPage.Items)-k]
-					return
-				} else {
-					leftPage.Items = leftPage.Items[:len(leftPage.Items)+1]
-					leftPage.Items[len(leftPage.Items)-1] = rootPage.Items[index]
-					leftPage.Items[len(leftPage.Items)-1].ChildPage = page.ChildPage0
-
-					leftPage.Items = mergePageItems(leftPage.Items, page.Items)
-					rootPage.Items = removeItemAtIndex(rootPage.Items, index)
-					/* dispose(page) */
+						leftPage.Items = mergePageItems(leftPage.Items, page.Items)
+						rootPage.Items = removeItemAtIndex(rootPage.Items, index)
+						/* dispose(page) */
+					}
 				}
 			}
 		}
-	}
 
-	/* Base page size was reduced. */
-	if len(bt.Root.Items) == 0 {
-		tmp := bt.Root
-		bt.Root = tmp.ChildPage0
+		/* Base page size was reduced. */
+		if len(bt.Root.Items) == 0 {
+			bt.Root = bt.Root.ChildPage0
+		}
 	}
 }
 
