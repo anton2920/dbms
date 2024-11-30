@@ -47,14 +47,13 @@ func main() {
 
 	println("INSERT 3!!!")
 	bt.Root = nil
-	bt.Order = 8
 	m := make(map[K]struct{})
 	rng := rand.New(rand.NewSource(Seed))
 	for i := 0; i <= N; i++ {
 		key := K(rng.Int() % 1000)
 		bt.Set(key, 0)
 		m[key] = struct{}{}
-		// fmt.Println(bt)
+		fmt.Println(bt)
 	}
 
 	println("DELETE 3!!!")

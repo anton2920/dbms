@@ -90,7 +90,7 @@ const (
 	N    = 10000
 
 	MinOrder = 16
-	MaxOrder = 16
+	MaxOrder = MinOrder
 )
 
 var (
@@ -182,12 +182,22 @@ func TestBtreeSet(t *testing.T) {
 	}
 }
 
-func BenchmarkRandInt(b *testing.B) {
-	rng := rand.New(rand.NewSource(Seed))
+func BenchmarkGenerator(b *testing.B) {
+	generators := [...]Generator{
+		new(RandomGenerator),
+		new(AscendingGenerator),
+		new(DescendingGenerator),
+		new(SawtoothGenerator),
+	}
+	for _, generator := range generators {
+		b.Run(generator.String(), func(b *testing.B) {
+			generator.Reset()
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = rng.Int()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = generator.Generate()
+			}
+		})
 	}
 }
 

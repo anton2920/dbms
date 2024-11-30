@@ -53,6 +53,32 @@ func findOnPage(page *Page, key K) (int, bool) {
 	return len(page.Items) - 1, false
 }
 
+func findOnPageBsearch(page *Page, key K) (int, bool) {
+	if key <= page.Items[0].Key {
+		return -1, key == page.Items[0].Key
+	} else if key >= page.Items[len(page.Items)-1].Key {
+		eq := key == page.Items[len(page.Items)-1].Key
+		return len(page.Items) - 1 - util.Bool2Int(eq), eq
+	}
+
+	l := 1
+	r := len(page.Items) - 2
+	for {
+		k := (l + r) / 2
+		if key >= page.Items[k].Key {
+			l = k + 1
+		}
+		if key <= page.Items[k].Key {
+			r = k - 1
+		}
+		if l > r {
+			break
+		}
+	}
+
+	return r, l-r > 1
+}
+
 func removeItemAtIndex(vs []Item, i int) []Item {
 	if (len(vs) == 0) || (i < 0) || (i >= len(vs)) {
 		return vs
