@@ -73,7 +73,7 @@ type SawtoothGenerator struct {
 
 func (g *SawtoothGenerator) Generate() K {
 	ret := g.Current
-	g.Current = -g.Current + (1 * util.Bool2Int(g.Current >= 0))
+	g.Current = -g.Current + (1 * -util.Bool2Int(g.Current >= 0))
 	return K(ret)
 }
 
@@ -89,8 +89,8 @@ const (
 	Seed = 100500
 	N    = 10000
 
-	MinOrder = 2
-	MaxOrder = 128
+	MinOrder = 16
+	MaxOrder = 16
 )
 
 var (
@@ -194,13 +194,19 @@ func BenchmarkRandInt(b *testing.B) {
 func benchmarkBtreeGet(b *testing.B, g Generator) {
 	b.Helper()
 
-	for order := 2; order <= 128; order++ {
+	for order := MinOrder; order <= MaxOrder; order++ {
 		b.Run(fmt.Sprintf("Order-%d", order), func(b *testing.B) {
 			var bt Btree
 
 			bt.Order = order
 			for i := 0; i < b.N; i++ {
 				bt.Set(g.Generate(), 0)
+			}
+
+			g.Reset()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = bt.Get(g.Generate())
 			}
 		})
 	}
@@ -229,6 +235,71 @@ func BenchmarkGet(b *testing.B) {
 	}{
 		{"Btree", benchmarkBtreeGet},
 		{"Map", benchmarkMapGet},
+	}
+
+	generators := [...]Generator{
+		new(RandomGenerator),
+		new(AscendingGenerator),
+		new(DescendingGenerator),
+		new(SawtoothGenerator),
+	}
+
+	for _, benchmark := range benchmarks {
+		b.Run(benchmark.Name, func(b *testing.B) {
+			for _, generator := range generators {
+				b.Run(generator.String(), func(b *testing.B) {
+					generator.Reset()
+					benchmark.Func(b, generator)
+				})
+			}
+		})
+	}
+}
+
+func benchmarkBtreeDel(b *testing.B, g Generator) {
+	b.Helper()
+
+	for order := MinOrder; order <= MaxOrder; order++ {
+		b.Run(fmt.Sprintf("Order-%d", order), func(b *testing.B) {
+			var bt Btree
+
+			bt.Order = order
+			for i := 0; i < b.N; i++ {
+				bt.Set(g.Generate(), 0)
+			}
+
+			g.Reset()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				bt.Del(g.Generate())
+			}
+		})
+	}
+}
+
+func benchmarkMapDel(b *testing.B, g Generator) {
+	b.Helper()
+
+	m := make(map[K]V)
+
+	for i := 0; i < b.N; i++ {
+		m[g.Generate()] = 0
+	}
+
+	g.Reset()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		delete(m, g.Generate())
+	}
+}
+
+func BenchmarkDel(b *testing.B) {
+	benchmarks := [...]struct {
+		Name string
+		Func func(*testing.B, Generator)
+	}{
+		{"Btree", benchmarkBtreeDel},
+		{"Map", benchmarkMapDel},
 	}
 
 	generators := [...]Generator{
