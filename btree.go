@@ -74,15 +74,45 @@ func mergePageItems(self []Item, other []Item) []Item {
 	return self
 }
 
+func (bt *Btree) init() {
+	if bt.Order == 0 {
+		bt.Order = DefaultBtreeOrder
+	}
+	bt.SearchPath = bt.SearchPath[:0]
+}
+
+func (bt *Btree) newPage(l int) *Page {
+	return &Page{Items: make([]Item, l, bt.Order*2)}
+}
+
+func (bt *Btree) Get(key K) V {
+	var value V
+
+	bt.init()
+
+	page := bt.Root
+	for page != nil {
+		index, ok := findOnPage(page, key)
+		if ok {
+			return page.Items[index].Value
+		}
+
+		if index == -1 {
+			page = page.ChildPage0
+		} else {
+			page = page.Items[index].ChildPage
+		}
+	}
+
+	return value
+}
+
 func (bt *Btree) Del(key K) {
 	var childPage *Page
 	var index int
 	var ok bool
 
-	if bt.Order == 0 {
-		bt.Order = DefaultBtreeOrder
-	}
-	bt.SearchPath = bt.SearchPath[:0]
+	bt.init()
 
 	page := bt.Root
 	for {
@@ -204,15 +234,28 @@ func (bt *Btree) Del(key K) {
 	}
 }
 
-func (bt *Btree) newPage(l int) *Page {
-	return &Page{Items: make([]Item, l, bt.Order*2)}
+func (bt *Btree) Has(key K) bool {
+	bt.init()
+
+	page := bt.Root
+	for page != nil {
+		index, ok := findOnPage(page, key)
+		if ok {
+			return true
+		}
+
+		if index == -1 {
+			page = page.ChildPage0
+		} else {
+			page = page.Items[index].ChildPage
+		}
+	}
+
+	return false
 }
 
 func (bt *Btree) Set(key K, value V) {
-	if bt.Order == 0 {
-		bt.Order = DefaultBtreeOrder
-	}
-	bt.SearchPath = bt.SearchPath[:0]
+	bt.init()
 
 	page := bt.Root
 	for page != nil {
