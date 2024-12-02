@@ -89,8 +89,9 @@ const (
 	Seed = 100500
 	N    = 10000
 
-	MinOrder = 16
-	MaxOrder = MinOrder
+	MinOrder  = 2
+	MaxOrder  = 256
+	OrderStep = 2
 )
 
 var (
@@ -204,7 +205,7 @@ func BenchmarkGenerator(b *testing.B) {
 func benchmarkBtreeGet(b *testing.B, g Generator) {
 	b.Helper()
 
-	for order := MinOrder; order <= MaxOrder; order++ {
+	for order := MinOrder; order <= MaxOrder; order += OrderStep {
 		b.Run(fmt.Sprintf("Order-%d", order), func(b *testing.B) {
 			var bt Btree
 
@@ -269,7 +270,7 @@ func BenchmarkGet(b *testing.B) {
 func benchmarkBtreeDel(b *testing.B, g Generator) {
 	b.Helper()
 
-	for order := MinOrder; order <= MaxOrder; order++ {
+	for order := MinOrder; order <= MaxOrder; order += OrderStep {
 		b.Run(fmt.Sprintf("Order-%d", order), func(b *testing.B) {
 			var bt Btree
 
@@ -334,7 +335,7 @@ func BenchmarkDel(b *testing.B) {
 func benchmarkBtreeSet(b *testing.B, g Generator) {
 	b.Helper()
 
-	for order := MinOrder; order <= MaxOrder; order++ {
+	for order := MinOrder; order <= MaxOrder; order += OrderStep {
 		b.Run(fmt.Sprintf("Order-%d", order), func(b *testing.B) {
 			var bt Btree
 

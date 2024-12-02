@@ -46,7 +46,7 @@ case $1 in
 		;;
 	check-bench)
 		run $0 $VERBOSITYFLAGS test
-		run ./$PROJECT.test -test.bench=. -test.benchmem -test.run=^Benchmark -test.count=1
+		run ./$PROJECT.test -test.bench=. -test.benchmem -test.run=^Benchmark -test.count=8 -test.benchtime=1000000x
 		;;
 	check-bench-cpu)
 		run $0 $VERBOSITYFLAGS test
