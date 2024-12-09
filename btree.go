@@ -1,3 +1,4 @@
+//go:build exclude
 package main
 
 import (
@@ -37,10 +38,10 @@ type Btree struct {
 	/* TODO(anton2920): add more appropriate fields. */
 }
 
-const DefaultBtreeOrder = 8
+const DefaultBtreeOrder = 22
 
 /* findOnPage returns index of element whose key is <= 'key'. Returns true, if ==. */
-func findOnPage2(page *Page, key K) (int, bool) {
+func findOnPage(page *Page, key K) (int, bool) {
 	if key >= page.Items[len(page.Items)-1].Key {
 		eq := key == page.Items[len(page.Items)-1].Key
 		return len(page.Items) - 1 - util.Bool2Int(eq), eq
@@ -53,7 +54,7 @@ func findOnPage2(page *Page, key K) (int, bool) {
 	return len(page.Items) - 1, false
 }
 
-func findOnPage(page *Page, key K) (int, bool) {
+func findOnPage1(page *Page, key K) (int, bool) {
 	if key <= page.Items[0].Key {
 		return -1, key == page.Items[0].Key
 	} else if key >= page.Items[len(page.Items)-1].Key {
