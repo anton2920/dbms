@@ -40,7 +40,7 @@ type Btree struct {
 const DefaultBtreeOrder = 8
 
 /* findOnPage returns index of element whose key is <= 'key'. Returns true, if ==. */
-func findOnPage1(page *Page, key K) (int, bool) {
+func findOnPage2(page *Page, key K) (int, bool) {
 	if key >= page.Items[len(page.Items)-1].Key {
 		eq := key == page.Items[len(page.Items)-1].Key
 		return len(page.Items) - 1 - util.Bool2Int(eq), eq

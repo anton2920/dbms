@@ -1,0 +1,64 @@
+goos: freebsd
+goarch: amd64
+cpu: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz
+                        │   rb.txt    │
+                        │   sec/op    │
+Generator/Random-8        4.288n ± 0%
+Generator/Ascending-8     1.503n ± 1%
+Generator/Descending-8    1.503n ± 0%
+Generator/Sawtooth-8      1.770n ± 0%
+Get/RBtree/Random-8       452.9n ± 1%
+Get/RBtree/Ascending-8    97.57n ± 0%
+Get/RBtree/Descending-8   95.35n ± 0%
+Get/RBtree/Sawtooth-8     100.5n ± 0%
+Del/RBtree/Random-8       567.3n ± 1%
+Del/RBtree/Ascending-8    102.3n ± 1%
+Del/RBtree/Descending-8   102.0n ± 1%
+Del/RBtree/Sawtooth-8     71.28n ± 0%
+Set/RBtree/Random-8       543.8n ± 1%
+Set/RBtree/Ascending-8    227.2n ± 0%
+Set/RBtree/Descending-8   213.7n ± 0%
+Set/RBtree/Sawtooth-8     218.1n ± 0%
+geomean                   58.27n
+
+                        │    rb.txt    │
+                        │     B/op     │
+Generator/Random-8        0.000 ± 0%
+Generator/Ascending-8     0.000 ± 0%
+Generator/Descending-8    0.000 ± 0%
+Generator/Sawtooth-8      0.000 ± 0%
+Get/RBtree/Random-8       0.000 ± 0%
+Get/RBtree/Ascending-8    0.000 ± 0%
+Get/RBtree/Descending-8   0.000 ± 0%
+Get/RBtree/Sawtooth-8     0.000 ± 0%
+Del/RBtree/Random-8       0.000 ± 0%
+Del/RBtree/Ascending-8    0.000 ± 0%
+Del/RBtree/Descending-8   0.000 ± 0%
+Del/RBtree/Sawtooth-8     0.000 ± 0%
+Set/RBtree/Random-8       48.00 ± 0%
+Set/RBtree/Ascending-8    48.00 ± 0%
+Set/RBtree/Descending-8   48.00 ± 0%
+Set/RBtree/Sawtooth-8     48.00 ± 0%
+geomean                              ¹
+¹ summaries must be >0 to compute geomean
+
+                        │    rb.txt    │
+                        │  allocs/op   │
+Generator/Random-8        0.000 ± 0%
+Generator/Ascending-8     0.000 ± 0%
+Generator/Descending-8    0.000 ± 0%
+Generator/Sawtooth-8      0.000 ± 0%
+Get/RBtree/Random-8       0.000 ± 0%
+Get/RBtree/Ascending-8    0.000 ± 0%
+Get/RBtree/Descending-8   0.000 ± 0%
+Get/RBtree/Sawtooth-8     0.000 ± 0%
+Del/RBtree/Random-8       0.000 ± 0%
+Del/RBtree/Ascending-8    0.000 ± 0%
+Del/RBtree/Descending-8   0.000 ± 0%
+Del/RBtree/Sawtooth-8     0.000 ± 0%
+Set/RBtree/Random-8       1.000 ± 0%
+Set/RBtree/Ascending-8    1.000 ± 0%
+Set/RBtree/Descending-8   1.000 ± 0%
+Set/RBtree/Sawtooth-8     1.000 ± 0%
+geomean                              ¹
+¹ summaries must be >0 to compute geomean

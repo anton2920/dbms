@@ -101,16 +101,14 @@ var (
 	_ Generator = &SawtoothGenerator{}
 )
 
-func TestBtreeGet(t *testing.T) {
+func testBtreeGet(t *testing.T, g Generator) {
 	var m map[K]V
 	var bt Btree
 
-	rng := rand.New(rand.NewSource(Seed))
 	m = make(map[K]V)
-
 	for i := 0; i < N; i++ {
-		k := K(rng.Int())
-		v := V(rng.Int())
+		k := K(g.Generate())
+		v := V(g.Generate())
 
 		m[k] = v
 		bt.Set(k, v)
@@ -123,15 +121,13 @@ func TestBtreeGet(t *testing.T) {
 	}
 }
 
-func TestBtreeDel(t *testing.T) {
+func testBtreeDel(t *testing.T, g Generator) {
 	var bt Btree
 
-	rng := rand.New(rand.NewSource(Seed))
 	m := make(map[K]struct{})
-
 	for i := 0; i < N; i++ {
-		k := K(rng.Int())
-		v := V(rng.Int())
+		k := K(g.Generate())
+		v := V(g.Generate())
 
 		m[k] = struct{}{}
 		bt.Set(k, v)
@@ -145,14 +141,12 @@ func TestBtreeDel(t *testing.T) {
 	}
 }
 
-func TestBtreeHas(t *testing.T) {
+func testBtreeHas(t *testing.T, g Generator) {
 	var bt Btree
 
-	rng := rand.New(rand.NewSource(Seed))
 	m := make(map[K]struct{})
-
 	for i := 0; i < N; i++ {
-		k := K(rng.Int())
+		k := K(g.Generate())
 
 		m[k] = struct{}{}
 		bt.Set(k, 0)
@@ -165,13 +159,12 @@ func TestBtreeHas(t *testing.T) {
 	}
 }
 
-func TestBtreeSet(t *testing.T) {
+func testBtreeSet(t *testing.T, g Generator) {
 	var bt Btree
 
-	rng := rand.New(rand.NewSource(Seed))
 	for i := 0; i < N; i++ {
-		k := K(rng.Int())
-		v := V(rng.Int())
+		k := K(g.Generate())
+		v := V(g.Generate())
 
 		bt.Set(k, v)
 		if !bt.Has(k) {
@@ -180,6 +173,141 @@ func TestBtreeSet(t *testing.T) {
 		if got := bt.Get(k); got != v {
 			t.Errorf("expected value %v, got %v", v, got)
 		}
+	}
+}
+
+func TestBtree(t *testing.T) {
+	tests := [...]struct {
+		Name string
+		Func func(*testing.T, Generator)
+	}{
+		{"Get", testBtreeGet},
+		{"Del", testBtreeDel},
+		{"Has", testBtreeHas},
+		{"Set", testBtreeSet},
+	}
+
+	generators := [...]Generator{
+		new(RandomGenerator),
+		new(AscendingGenerator),
+		new(DescendingGenerator),
+		new(SawtoothGenerator),
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			for _, generator := range generators {
+				generator.Reset()
+				t.Run(generator.String(), func(t *testing.T) {
+					test.Func(t, generator)
+				})
+			}
+		})
+	}
+}
+
+func testRBtreeGet(t *testing.T, g Generator) {
+	var m map[K]V
+	rb := NewRBtree[K, V]()
+
+	m = make(map[K]V)
+	for i := 0; i < N; i++ {
+		k := K(g.Generate())
+		v := V(g.Generate())
+
+		m[k] = v
+		rb.Set(k, v)
+	}
+
+	for k, v := range m {
+		if got := rb.Get(k); got != v {
+			t.Errorf("expected value %v, got %v", v, got)
+		}
+	}
+}
+
+func testRBtreeDel(t *testing.T, g Generator) {
+	rb := NewRBtree[K, V]()
+
+	m := make(map[K]struct{})
+	for i := 0; i < N; i++ {
+		k := K(g.Generate())
+		v := V(g.Generate())
+
+		m[k] = struct{}{}
+		rb.Set(k, v)
+	}
+
+	for k := range m {
+		rb.Del(k)
+		if rb.Has(k) {
+			t.Errorf("expected key %v to be removed, but it's still present", k)
+		}
+	}
+}
+
+func testRBtreeHas(t *testing.T, g Generator) {
+	rb := NewRBtree[K, V]()
+
+	m := make(map[K]struct{})
+	for i := 0; i < N; i++ {
+		k := K(g.Generate())
+
+		m[k] = struct{}{}
+		rb.Set(k, 0)
+	}
+
+	for k := range m {
+		if !rb.Has(k) {
+			t.Errorf("expected to found key %v, found nothing", k)
+		}
+	}
+}
+
+func testRBtreeSet(t *testing.T, g Generator) {
+	rb := NewRBtree[K, V]()
+
+	for i := 0; i < N; i++ {
+		k := K(g.Generate())
+		v := V(g.Generate())
+
+		rb.Set(k, v)
+		if !rb.Has(k) {
+			t.Errorf("expected to found key %v, found nothing", k)
+		}
+		if got := rb.Get(k); got != v {
+			t.Errorf("expected value %v, got %v", v, got)
+		}
+	}
+}
+
+func TestRBtree(t *testing.T) {
+	tests := [...]struct {
+		Name string
+		Func func(*testing.T, Generator)
+	}{
+		{"Get", testRBtreeGet},
+		{"Del", testRBtreeDel},
+		{"Has", testRBtreeHas},
+		{"Set", testRBtreeSet},
+	}
+
+	generators := [...]Generator{
+		new(RandomGenerator),
+		new(AscendingGenerator),
+		new(DescendingGenerator),
+		new(SawtoothGenerator),
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			for _, generator := range generators {
+				generator.Reset()
+				t.Run(generator.String(), func(t *testing.T) {
+					test.Func(t, generator)
+				})
+			}
+		})
 	}
 }
 
@@ -239,6 +367,22 @@ func benchmarkMapGet(b *testing.B, g Generator) {
 	}
 }
 
+func benchmarkRBtreeGet(b *testing.B, g Generator) {
+	b.Helper()
+
+	rb := NewRBtree[K, V]()
+
+	for i := 0; i < b.N; i++ {
+		rb.Set(g.Generate(), 0)
+	}
+
+	g.Reset()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = rb.Get(g.Generate())
+	}
+}
+
 func BenchmarkGet(b *testing.B) {
 	benchmarks := [...]struct {
 		Name string
@@ -246,6 +390,7 @@ func BenchmarkGet(b *testing.B) {
 	}{
 		{"Btree", benchmarkBtreeGet},
 		{"Map", benchmarkMapGet},
+		{"RBtree", benchmarkRBtreeGet},
 	}
 
 	generators := [...]Generator{
@@ -304,6 +449,22 @@ func benchmarkMapDel(b *testing.B, g Generator) {
 	}
 }
 
+func benchmarkRBtreeDel(b *testing.B, g Generator) {
+	b.Helper()
+
+	rb := NewRBtree[K, V]()
+
+	for i := 0; i < b.N; i++ {
+		rb.Set(g.Generate(), 0)
+	}
+
+	g.Reset()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		rb.Del(g.Generate())
+	}
+}
+
 func BenchmarkDel(b *testing.B) {
 	benchmarks := [...]struct {
 		Name string
@@ -311,6 +472,7 @@ func BenchmarkDel(b *testing.B) {
 	}{
 		{"Btree", benchmarkBtreeDel},
 		{"Map", benchmarkMapDel},
+		{"RBtree", benchmarkRBtreeDel},
 	}
 
 	generators := [...]Generator{
@@ -357,6 +519,16 @@ func benchmarkMapSet(b *testing.B, g Generator) {
 	}
 }
 
+func benchmarkRBtreeSet(b *testing.B, g Generator) {
+	b.Helper()
+
+	rb := NewRBtree[K, V]()
+
+	for i := 0; i < b.N; i++ {
+		rb.Set(g.Generate(), 0)
+	}
+}
+
 func BenchmarkSet(b *testing.B) {
 	benchmarks := [...]struct {
 		Name string
@@ -364,6 +536,7 @@ func BenchmarkSet(b *testing.B) {
 	}{
 		{"Btree", benchmarkBtreeSet},
 		{"Map", benchmarkMapSet},
+		{"RBtree", benchmarkRBtreeSet},
 	}
 
 	generators := [...]Generator{
