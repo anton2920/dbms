@@ -6,7 +6,7 @@ const (
 )
 
 const (
-	MinOrder  = 5
+	MinOrder  = 3
 	MaxOrder  = 255
-	OrderStep = 2
+	OrderStep = 1
 )

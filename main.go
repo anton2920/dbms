@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"bplus"
 	"btree"
@@ -24,6 +25,8 @@ var (
 
 	/* 25 45 24; 38 32; 8 27 46 13 42; 5 22 18 26; 7 35 15; */
 	DeleleKeys = [...]types.K{25, 45, 24, 38, 32, 8, 27, 46, 13, 42, 5, 22, 18, 26, 7, 35, 15}
+
+	G = new(generator.RandomGenerator)
 )
 
 func BtreeDemo() {
@@ -35,25 +38,26 @@ func BtreeDemo() {
 
 	println("INSERT 1!!!")
 	for _, key := range InsertKeys {
+		// fmt.Println("I:", key)
 		bt.Set(key, 0)
 		// fmt.Println(bt)
 	}
 	fmt.Println(bt)
 
-	/*
-		println("DELETE!!!")
-		for _, key := range DeleleKeys {
-			fmt.Println("R:", key)
-			bt.Del(key)
-			fmt.Println(bt)
-		}
-	*/
+	println("DELETE!!!")
+	for _, key := range DeleleKeys {
+		// fmt.Println("R:", key)
+		bt.Del(key)
+		// fmt.Println(bt)
+	}
 
 	println("INSERT 2!!!")
 	bt.Root = nil
 	for i := Min; i <= Max; i += Step {
-		bt.Set(types.K(i), 0)
-		// fmt.Println(bt)
+		key := types.K(i)
+		//fmt.Println("I:", key)
+		bt.Set(key, 0)
+		//fmt.Println(bt)
 	}
 	fmt.Println(bt)
 
@@ -67,14 +71,24 @@ func BtreeDemo() {
 
 	println("INSERT 3!!!")
 	bt.Root = nil
-	m := make(map[types.K]struct{})
-	g := new(generator.RandomGenerator)
-	g.Reset()
-	for i := 0; i <= N; i++ {
-		key := g.Generate() % 1000
-		bt.Set(key, 0)
-		m[key] = struct{}{}
+	m := make(map[types.K]types.V)
+	G.Reset()
+	for i := 0; i < N; i++ {
+		key := G.Generate() % 1000
+		value := types.V(G.Generate())
+		bt.Set(key, value)
+		m[key] = value
 		// fmt.Println(bt)
+	}
+	for key, value := range m {
+		if !bt.Has(key) {
+			fmt.Println(bt)
+			log.Panicf("Whoops... Failed to find %v; %v", key, value)
+		}
+		if got := bt.Get(key); got != value {
+			fmt.Println(bt)
+			log.Panicf("Whoops... Failed to find %v; %v, got %v", key, value, got)
+		}
 	}
 	fmt.Println(bt)
 
@@ -111,8 +125,9 @@ func BplusDemo() {
 
 	println("INSERT 1!!!")
 	for _, key := range InsertKeys {
+		//fmt.Println("I:", key)
 		bt.Set(key, 0)
-		// fmt.Println(bt)
+		//fmt.Println(bt)
 	}
 	fmt.Println(bt)
 	BplusPrintSeq(&bt)
@@ -129,8 +144,10 @@ func BplusDemo() {
 	println("INSERT 2!!!")
 	bt.Root = nil
 	for i := Min; i <= Max; i += Step {
-		bt.Set(types.K(i), 0)
-		// fmt.Println(bt)
+		key := types.K(i)
+		fmt.Println("I:", key)
+		bt.Set(key, 0)
+		fmt.Println(bt)
 	}
 	fmt.Println(bt)
 	BplusPrintSeq(&bt)
@@ -145,14 +162,24 @@ func BplusDemo() {
 
 	println("INSERT 3!!!")
 	bt.Root = nil
-	m := make(map[types.K]struct{})
-	g := new(generator.RandomGenerator)
-	g.Reset()
-	for i := 0; i <= N; i++ {
-		key := g.Generate() % 1000
-		bt.Set(key, 0)
-		m[key] = struct{}{}
+	m := make(map[types.K]types.V)
+	G.Reset()
+	for i := 0; i < N; i++ {
+		key := G.Generate() % 1000
+		value := types.V(G.Generate())
+		bt.Set(key, value)
+		m[key] = value
 		// fmt.Println(bt)
+	}
+	for key, value := range m {
+		if !bt.Has(key) {
+			fmt.Println(bt)
+			log.Panicf("Whoops... Failed to find %v; %v", key, value)
+		}
+		if got := bt.Get(key); got != value {
+			fmt.Println(bt)
+			log.Panicf("Whoops... Failed to find %v; %v, got %v", key, value, got)
+		}
 	}
 	fmt.Println(bt)
 	BplusPrintSeq(&bt)

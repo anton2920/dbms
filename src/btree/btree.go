@@ -183,7 +183,7 @@ func (bt *Btree) Del(key types.K) {
 	}
 
 	// runtime.Breakpoint()
-	half := (bt.Order - 1) / 2
+	half := bt.Order/2 - (1 - bt.Order%2)
 	if len(page.Items) < half {
 		for p := len(bt.SearchPath) - 1; p >= 0; p-- {
 			item := &bt.SearchPath[p]
@@ -289,6 +289,7 @@ func (bt *Btree) Set(key types.K, value types.V) {
 	for page != nil {
 		index, ok := findOnPage(page, key)
 		if ok {
+			page.Items[index+1].Value = value
 			return
 		}
 
@@ -317,8 +318,8 @@ func (bt *Btree) Set(key types.K, value types.V) {
 		}
 
 		/* 'page' is full; split it and assign emerging Item to 'item'. */
-		half := (bt.Order - 1) / 2
-		newPage := bt.newPage(half)
+		half := bt.Order / 2
+		newPage := bt.newPage(half - (1 - bt.Order%2))
 		if index <= half-1 {
 			if index < half-1 {
 				item = page.Items[half-1]
