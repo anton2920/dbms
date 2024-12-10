@@ -5,12 +5,12 @@ import (
 	"log"
 	"math/rand"
 
-	"btree"
+	"bplus"
 	"types"
 )
 
 func main() {
-	var bt btree.Btree
+	var bt bplus.Btree
 	bt.Order = 3
 
 	/* 20; 40 10 30 15; 35 7 26 18 22; 5; 42 13 46 27 8 32; 38 24 45 25; */

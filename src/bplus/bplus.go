@@ -198,7 +198,7 @@ func (bt *Btree) Set(key types.K, value types.V) {
 				page.Values = insertValue(page.Values, value, index+1)
 			}
 
-			for p := p; (p > 0) && (bt.SearchPath[p].Index == -1); p-- {
+			for p := p; (p > 0) && (bt.SearchPath[p].Index <= 0); p-- {
 				rootPage := bt.SearchPath[p-1].Page.(*Node)
 				page := bt.SearchPath[p].Page
 				rootPage.Keys[bt.SearchPath[p-1].Index] = page.FirstKey()

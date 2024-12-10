@@ -94,8 +94,8 @@ const (
 	Seed = 100500
 	N    = 10000
 
-	MinOrder  = 22
-	MaxOrder  = 22
+	MinOrder  = 2
+	MaxOrder  = 256
 	OrderStep = 2
 )
 
