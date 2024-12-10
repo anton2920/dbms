@@ -41,7 +41,7 @@ type Btree struct {
 	SearchPath []PathItem
 }
 
-const DefaultBtreeOrder = 3
+const DefaultBtreeOrder = 45
 
 var (
 	_ Page = &Node{}

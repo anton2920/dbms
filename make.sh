@@ -41,12 +41,13 @@ case $1 in
 		run rm -rf /tmp/cover*
 		;;
 	check)
-		run $0 $VERBOSITYFLAGS test-race-cover
-		run ./$PROJECT.test
+		CGO_ENABLED=1; export CGO_ENABLED
+		run $0 $VERBOSITYFLAGS vet
+		run go test $VERBOSITYFLAGS -race -cover -gcflags='all=-N -l' ./...
 		;;
 	check-bench)
-		run $0 $VERBOSITYFLAGS test
-		run ./$PROJECT.test -test.bench=Set -test.benchmem -test.run=^Benchmark -test.count=8 -test.benchtime=10000x
+		run $0 $VERBOSITYFLAGS vet
+		run run go test $VERBOSITYFLAGS -bench=. -run=^Benchmark -count=8 -benchtime=10000x ./...
 		;;
 	check-bench-cpu)
 		run $0 $VERBOSITYFLAGS test
@@ -97,12 +98,12 @@ case $1 in
 		;;
 	test)
 		run $0 $VERBOSITYFLAGS vet
-		run go test $VERBOSITYFLAGS -c -o $PROJECT.test -vet=off
+		run go test $VERBOSITYFLAGS -c -o $PROJECT.test -vet=off ./...
 		;;
 	test-race-cover)
 		CGO_ENABLED=1; export CGO_ENABLED
 		run $0 $VERBOSITYFLAGS vet
-		run go test $VERBOSITYFLAGS -c -o $PROJECT.test -vet=off -race -cover -gcflags='all=-N -l'
+		run
 		;;
 	tracing)
 		run go build -o $PROJECT -ldflags="-s -w -X main.BuildMode=Tracing"

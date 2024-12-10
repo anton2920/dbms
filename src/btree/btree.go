@@ -36,7 +36,7 @@ type Btree struct {
 	/* TODO(anton2920): add more appropriate fields. */
 }
 
-const DefaultBtreeOrder = 22
+const DefaultBtreeOrder = 45
 
 /* findOnPage returns index of element whose key is <= 'key'. Returns true, if ==. */
 func findOnPage(page *Page, key types.K) (int, bool) {
@@ -182,24 +182,26 @@ func (bt *Btree) Del(key types.K) {
 		}
 	}
 
-	if len(page.Items) < bt.Order {
+	// runtime.Breakpoint()
+	half := (bt.Order - 1) / 2
+	if len(page.Items) < half {
 		for p := len(bt.SearchPath) - 1; p >= 0; p-- {
 			item := &bt.SearchPath[p]
 			rootPage := item.Page
 			page := item.ChildPage
 			index := item.Index
 
-			if len(page.Items) < bt.Order {
+			if len(page.Items) < half {
 				if index < len(rootPage.Items)-1 {
 					rightPage := rootPage.Items[index+1].ChildPage
 
-					k := (len(rightPage.Items) - bt.Order + 1) / 2
+					k := (len(rightPage.Items) - half + 1) / 2
 					if k > 0 {
 						page.Items = page.Items[:len(page.Items)+k]
-						copy(page.Items[bt.Order:], rightPage.Items[:k-1])
+						copy(page.Items[half:], rightPage.Items[:k-1])
 
-						page.Items[bt.Order-1] = rootPage.Items[index+1]
-						page.Items[bt.Order-1].ChildPage = rightPage.ChildPage0
+						page.Items[half-1] = rootPage.Items[index+1]
+						page.Items[half-1].ChildPage = rightPage.ChildPage0
 
 						rootPage.Items[index+1] = rightPage.Items[k-1]
 						rootPage.Items[index+1].ChildPage = rightPage
@@ -209,9 +211,9 @@ func (bt *Btree) Del(key types.K) {
 						rightPage.Items = rightPage.Items[:len(rightPage.Items)-k]
 						return
 					} else {
-						page.Items = page.Items[:bt.Order]
-						page.Items[bt.Order-1] = rootPage.Items[index+1]
-						page.Items[bt.Order-1].ChildPage = rightPage.ChildPage0
+						page.Items = page.Items[:half]
+						page.Items[half-1] = rootPage.Items[index+1]
+						page.Items[half-1].ChildPage = rightPage.ChildPage0
 
 						page.Items = mergePageItems(page.Items, rightPage.Items)
 						rootPage.Items = removeItemAtIndex(rootPage.Items, index+1)
@@ -225,10 +227,10 @@ func (bt *Btree) Del(key types.K) {
 						leftPage = rootPage.Items[index-1].ChildPage
 					}
 
-					k := (len(leftPage.Items) - bt.Order + 1) / 2
+					k := (len(leftPage.Items) - half + 1) / 2
 					if k > 0 {
 						page.Items = page.Items[:len(page.Items)+k]
-						copy(page.Items[k:], page.Items[:bt.Order])
+						copy(page.Items[k:], page.Items[:half])
 
 						page.Items[k-1] = rootPage.Items[index]
 						page.Items[k-1].ChildPage = page.ChildPage0
@@ -306,7 +308,7 @@ func (bt *Btree) Set(key types.K, value types.V) {
 		index := bt.SearchPath[p].Index
 		page := bt.SearchPath[p].Page
 
-		if len(page.Items) < bt.Order*2 {
+		if len(page.Items) < bt.Order-1 {
 			/* Insert 'newItem' to the right of 'page.Items[index]'. */
 			page.Items = page.Items[:len(page.Items)+1]
 			copy(page.Items[index+2:], page.Items[index+1:])
@@ -315,24 +317,25 @@ func (bt *Btree) Set(key types.K, value types.V) {
 		}
 
 		/* 'page' is full; split it and assign emerging Item to 'item'. */
-		newPage := bt.newPage(bt.Order)
-		if index <= bt.Order-1 {
-			if index < bt.Order-1 {
-				item = page.Items[bt.Order-1]
-				copy(page.Items[index+2:bt.Order], page.Items[index+1:])
+		half := (bt.Order - 1) / 2
+		newPage := bt.newPage(half)
+		if index <= half-1 {
+			if index < half-1 {
+				item = page.Items[half-1]
+				copy(page.Items[index+2:half], page.Items[index+1:])
 				page.Items[index+1] = newItem
 			}
-			copy(newPage.Items, page.Items[bt.Order:])
+			copy(newPage.Items, page.Items[half:])
 		} else {
 			/* Insert 'newItem' in right page. */
-			item = page.Items[bt.Order]
-			index = index - bt.Order
+			item = page.Items[half]
+			index = index - half
 
-			copy(newPage.Items, page.Items[bt.Order+1:])
+			copy(newPage.Items, page.Items[half+1:])
 			newPage.Items[index] = newItem
-			copy(newPage.Items[index+1:], page.Items[index+1+bt.Order:])
+			copy(newPage.Items[index+1:], page.Items[index+1+half:])
 		}
-		page.Items = page.Items[:bt.Order]
+		page.Items = page.Items[:half]
 
 		newPage.ChildPage0 = item.ChildPage
 		item.ChildPage = newPage
