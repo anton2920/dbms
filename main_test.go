@@ -5,13 +5,18 @@ import (
 	"math/rand"
 	"testing"
 
+	"bplus"
+	"btree"
+	"rbtree"
+	"types"
+
 	"github.com/anton2920/gofa/util"
 )
 
 type Generator interface {
 	fmt.Stringer
 
-	Generate() K
+	Generate() types.K
 	Reset()
 }
 
@@ -19,8 +24,8 @@ type RandomGenerator struct {
 	Rng *rand.Rand
 }
 
-func (g *RandomGenerator) Generate() K {
-	return K(g.Rng.Int())
+func (g *RandomGenerator) Generate() types.K {
+	return types.K(g.Rng.Int())
 }
 
 func (g *RandomGenerator) Reset() {
@@ -35,10 +40,10 @@ type AscendingGenerator struct {
 	Current int
 }
 
-func (g *AscendingGenerator) Generate() K {
+func (g *AscendingGenerator) Generate() types.K {
 	ret := g.Current
 	g.Current++
-	return K(ret)
+	return types.K(ret)
 }
 
 func (g *AscendingGenerator) Reset() {
@@ -53,10 +58,10 @@ type DescendingGenerator struct {
 	Current int
 }
 
-func (g *DescendingGenerator) Generate() K {
+func (g *DescendingGenerator) Generate() types.K {
 	ret := g.Current
 	g.Current--
-	return K(ret)
+	return types.K(ret)
 }
 
 func (g *DescendingGenerator) Reset() {
@@ -71,10 +76,10 @@ type SawtoothGenerator struct {
 	Current int
 }
 
-func (g *SawtoothGenerator) Generate() K {
+func (g *SawtoothGenerator) Generate() types.K {
 	ret := g.Current
 	g.Current = -g.Current + (1 * -util.Bool2Int(g.Current >= 0))
-	return K(ret)
+	return types.K(ret)
 }
 
 func (g *SawtoothGenerator) Reset() {
@@ -102,13 +107,13 @@ var (
 )
 
 func testBtreeGet(t *testing.T, g Generator) {
-	var m map[K]V
-	var bt Btree
+	var m map[types.K]types.V
+	var bt btree.Btree
 
-	m = make(map[K]V)
+	m = make(map[types.K]types.V)
 	for i := 0; i < N; i++ {
-		k := K(g.Generate())
-		v := V(g.Generate())
+		k := types.K(g.Generate())
+		v := types.V(g.Generate())
 
 		m[k] = v
 		bt.Set(k, v)
@@ -122,12 +127,12 @@ func testBtreeGet(t *testing.T, g Generator) {
 }
 
 func testBtreeDel(t *testing.T, g Generator) {
-	var bt Btree
+	var bt btree.Btree
 
-	m := make(map[K]struct{})
+	m := make(map[types.K]struct{})
 	for i := 0; i < N; i++ {
-		k := K(g.Generate())
-		v := V(g.Generate())
+		k := types.K(g.Generate())
+		v := types.V(g.Generate())
 
 		m[k] = struct{}{}
 		bt.Set(k, v)
@@ -142,11 +147,11 @@ func testBtreeDel(t *testing.T, g Generator) {
 }
 
 func testBtreeHas(t *testing.T, g Generator) {
-	var bt Btree
+	var bt btree.Btree
 
-	m := make(map[K]struct{})
+	m := make(map[types.K]struct{})
 	for i := 0; i < N; i++ {
-		k := K(g.Generate())
+		k := types.K(g.Generate())
 
 		m[k] = struct{}{}
 		bt.Set(k, 0)
@@ -160,11 +165,11 @@ func testBtreeHas(t *testing.T, g Generator) {
 }
 
 func testBtreeSet(t *testing.T, g Generator) {
-	var bt Btree
+	var bt btree.Btree
 
 	for i := 0; i < N; i++ {
-		k := K(g.Generate())
-		v := V(g.Generate())
+		k := types.K(g.Generate())
+		v := types.V(g.Generate())
 
 		bt.Set(k, v)
 		if !bt.Has(k) {
@@ -207,13 +212,13 @@ func TestBtree(t *testing.T) {
 }
 
 func testRBtreeGet(t *testing.T, g Generator) {
-	var m map[K]V
-	rb := NewRBtree[K, V]()
+	var m map[types.K]types.V
+	rb := rbtree.NewRBtree[types.K, types.V]()
 
-	m = make(map[K]V)
+	m = make(map[types.K]types.V)
 	for i := 0; i < N; i++ {
-		k := K(g.Generate())
-		v := V(g.Generate())
+		k := types.K(g.Generate())
+		v := types.V(g.Generate())
 
 		m[k] = v
 		rb.Set(k, v)
@@ -227,12 +232,12 @@ func testRBtreeGet(t *testing.T, g Generator) {
 }
 
 func testRBtreeDel(t *testing.T, g Generator) {
-	rb := NewRBtree[K, V]()
+	rb := rbtree.NewRBtree[types.K, types.V]()
 
-	m := make(map[K]struct{})
+	m := make(map[types.K]struct{})
 	for i := 0; i < N; i++ {
-		k := K(g.Generate())
-		v := V(g.Generate())
+		k := types.K(g.Generate())
+		v := types.V(g.Generate())
 
 		m[k] = struct{}{}
 		rb.Set(k, v)
@@ -247,11 +252,11 @@ func testRBtreeDel(t *testing.T, g Generator) {
 }
 
 func testRBtreeHas(t *testing.T, g Generator) {
-	rb := NewRBtree[K, V]()
+	rb := rbtree.NewRBtree[types.K, types.V]()
 
-	m := make(map[K]struct{})
+	m := make(map[types.K]struct{})
 	for i := 0; i < N; i++ {
-		k := K(g.Generate())
+		k := types.K(g.Generate())
 
 		m[k] = struct{}{}
 		rb.Set(k, 0)
@@ -265,11 +270,11 @@ func testRBtreeHas(t *testing.T, g Generator) {
 }
 
 func testRBtreeSet(t *testing.T, g Generator) {
-	rb := NewRBtree[K, V]()
+	rb := rbtree.NewRBtree[types.K, types.V]()
 
 	for i := 0; i < N; i++ {
-		k := K(g.Generate())
-		v := V(g.Generate())
+		k := types.K(g.Generate())
+		v := types.V(g.Generate())
 
 		rb.Set(k, v)
 		if !rb.Has(k) {
@@ -335,7 +340,7 @@ func benchmarkBtreeGet(b *testing.B, g Generator) {
 
 	for order := MinOrder; order <= MaxOrder; order += OrderStep {
 		b.Run(fmt.Sprintf("Order-%d", order), func(b *testing.B) {
-			var bt Btree
+			var bt btree.Btree
 
 			bt.Order = order
 			for i := 0; i < b.N; i++ {
@@ -354,7 +359,7 @@ func benchmarkBtreeGet(b *testing.B, g Generator) {
 func benchmarkMapGet(b *testing.B, g Generator) {
 	b.Helper()
 
-	m := make(map[K]V)
+	m := make(map[types.K]types.V)
 
 	for i := 0; i < b.N; i++ {
 		m[g.Generate()] = 0
@@ -370,7 +375,7 @@ func benchmarkMapGet(b *testing.B, g Generator) {
 func benchmarkRBtreeGet(b *testing.B, g Generator) {
 	b.Helper()
 
-	rb := NewRBtree[K, V]()
+	rb := rbtree.NewRBtree[types.K, types.V]()
 
 	for i := 0; i < b.N; i++ {
 		rb.Set(g.Generate(), 0)
@@ -417,7 +422,7 @@ func benchmarkBtreeDel(b *testing.B, g Generator) {
 
 	for order := MinOrder; order <= MaxOrder; order += OrderStep {
 		b.Run(fmt.Sprintf("Order-%d", order), func(b *testing.B) {
-			var bt Btree
+			var bt btree.Btree
 
 			bt.Order = order
 			for i := 0; i < b.N; i++ {
@@ -436,7 +441,7 @@ func benchmarkBtreeDel(b *testing.B, g Generator) {
 func benchmarkMapDel(b *testing.B, g Generator) {
 	b.Helper()
 
-	m := make(map[K]V)
+	m := make(map[types.K]types.V)
 
 	for i := 0; i < b.N; i++ {
 		m[g.Generate()] = 0
@@ -452,7 +457,7 @@ func benchmarkMapDel(b *testing.B, g Generator) {
 func benchmarkRBtreeDel(b *testing.B, g Generator) {
 	b.Helper()
 
-	rb := NewRBtree[K, V]()
+	rb := rbtree.NewRBtree[types.K, types.V]()
 
 	for i := 0; i < b.N; i++ {
 		rb.Set(g.Generate(), 0)
@@ -494,12 +499,27 @@ func BenchmarkDel(b *testing.B) {
 	}
 }
 
+func benchmarkBplusSet(b *testing.B, g Generator) {
+	b.Helper()
+
+	for order := MinOrder; order <= MaxOrder; order += OrderStep {
+		b.Run(fmt.Sprintf("Order-%d", order), func(b *testing.B) {
+			var bt bplus.Btree
+
+			bt.Order = order
+			for i := 0; i < b.N; i++ {
+				bt.Set(types.K(g.Generate()), 0)
+			}
+		})
+	}
+}
+
 func benchmarkBtreeSet(b *testing.B, g Generator) {
 	b.Helper()
 
 	for order := MinOrder; order <= MaxOrder; order += OrderStep {
 		b.Run(fmt.Sprintf("Order-%d", order), func(b *testing.B) {
-			var bt Btree
+			var bt btree.Btree
 
 			bt.Order = order
 			for i := 0; i < b.N; i++ {
@@ -512,7 +532,7 @@ func benchmarkBtreeSet(b *testing.B, g Generator) {
 func benchmarkMapSet(b *testing.B, g Generator) {
 	b.Helper()
 
-	m := make(map[K]V)
+	m := make(map[types.K]types.V)
 
 	for i := 0; i < b.N; i++ {
 		m[g.Generate()] = 0
@@ -522,7 +542,7 @@ func benchmarkMapSet(b *testing.B, g Generator) {
 func benchmarkRBtreeSet(b *testing.B, g Generator) {
 	b.Helper()
 
-	rb := NewRBtree[K, V]()
+	rb := rbtree.NewRBtree[types.K, types.V]()
 
 	for i := 0; i < b.N; i++ {
 		rb.Set(g.Generate(), 0)
@@ -534,6 +554,7 @@ func BenchmarkSet(b *testing.B) {
 		Name string
 		Func func(*testing.B, Generator)
 	}{
+		{"Bplus", benchmarkBplusSet},
 		{"Btree", benchmarkBtreeSet},
 		{"Map", benchmarkMapSet},
 		{"RBtree", benchmarkRBtreeSet},

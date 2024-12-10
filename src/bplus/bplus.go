@@ -1,30 +1,29 @@
-package main
+package bplus
 
 import (
 	"fmt"
 	"strings"
 
+	"types"
+
 	"github.com/anton2920/gofa/util"
 )
 
-type K int
-type V int
-
 type Page interface {
 	Child(int) Page
-	Find(K) int
-	FirstKey() K
+	Find(types.K) int
+	FirstKey() types.K
 	Len() int
 }
 
 type Node struct {
-	Keys     []K
+	Keys     []types.K
 	Children []Page
 }
 
 type Leaf struct {
-	Keys   []K
-	Values []V
+	Keys   []types.K
+	Values []types.V
 	Next   *Leaf
 }
 
@@ -54,7 +53,7 @@ func (n *Node) Child(index int) Page {
 }
 
 /* [k1, k2). */
-func (n *Node) Find(key K) int {
+func (n *Node) Find(key types.K) int {
 	if key >= n.Keys[len(n.Keys)-1] {
 		eq := key == n.Keys[len(n.Keys)-1]
 		return len(n.Keys) - 1 - util.Bool2Int(eq)
@@ -67,7 +66,7 @@ func (n *Node) Find(key K) int {
 	return len(n.Keys) - 1
 }
 
-func (n *Node) FirstKey() K {
+func (n *Node) FirstKey() types.K {
 	return n.Keys[0]
 }
 
@@ -79,7 +78,7 @@ func (l *Leaf) Child(int) Page {
 	return nil
 }
 
-func (l *Leaf) Find(key K) int {
+func (l *Leaf) Find(key types.K) int {
 	if key >= l.Keys[len(l.Keys)-1] {
 		eq := key == l.Keys[len(l.Keys)-1]
 		return len(l.Keys) - 1 - util.Bool2Int(eq)
@@ -92,7 +91,7 @@ func (l *Leaf) Find(key K) int {
 	return len(l.Keys) - 1
 }
 
-func (l *Leaf) FirstKey() K {
+func (l *Leaf) FirstKey() types.K {
 	return l.Keys[0]
 }
 
@@ -107,14 +106,14 @@ func insertChild(children []Page, child Page, index int) []Page {
 	return children
 }
 
-func insertKey(keys []K, key K, index int) []K {
+func insertKey(keys []types.K, key types.K, index int) []types.K {
 	keys = keys[:len(keys)+1]
 	copy(keys[index+1:], keys[index:])
 	keys[index] = key
 	return keys
 }
 
-func insertValue(values []V, value V, index int) []V {
+func insertValue(values []types.V, value types.V, index int) []types.V {
 	values = values[:len(values)+1]
 	copy(values[index+1:], values[index:])
 	values[index] = value
@@ -122,11 +121,11 @@ func insertValue(values []V, value V, index int) []V {
 }
 
 func (bt *Btree) newNode(l int) *Node {
-	return &Node{Keys: make([]K, l, bt.Order+1), Children: make([]Page, l, bt.Order+1)}
+	return &Node{Keys: make([]types.K, l, bt.Order+1), Children: make([]Page, l, bt.Order+1)}
 }
 
 func (bt *Btree) newLeaf(l int) *Leaf {
-	return &Leaf{Keys: make([]K, l, bt.Order+1), Values: make([]V, l, bt.Order+1)}
+	return &Leaf{Keys: make([]types.K, l, bt.Order+1), Values: make([]types.V, l, bt.Order+1)}
 }
 
 func (bt *Btree) init() {
@@ -152,19 +151,19 @@ func (bt *Btree) End() *Leaf {
 	return nil
 }
 
-func (bt *Btree) Del(key K) {
+func (bt *Btree) Del(key types.K) {
 
 }
 
-func (bt *Btree) Get(key K) V {
-	return V(0)
+func (bt *Btree) Get(key types.K) types.V {
+	return types.V(0)
 }
 
-func (bt *Btree) Has(key K) bool {
+func (bt *Btree) Has(key types.K) bool {
 	return false
 }
 
-func (bt *Btree) Set(key K, value V) {
+func (bt *Btree) Set(key types.K, value types.V) {
 	bt.init()
 	if bt.Root == nil {
 		leaf := bt.newLeaf(1)

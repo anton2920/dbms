@@ -1,19 +1,17 @@
-//go:build exclude
-package main
+package btree
 
 import (
 	"fmt"
 	"strings"
 
+	"types"
+
 	"github.com/anton2920/gofa/util"
 )
 
-type K int
-type V int
-
 type Item struct {
-	Key       K
-	Value     V
+	Key       types.K
+	Value     types.V
 	ChildPage *Page
 }
 
@@ -41,7 +39,7 @@ type Btree struct {
 const DefaultBtreeOrder = 22
 
 /* findOnPage returns index of element whose key is <= 'key'. Returns true, if ==. */
-func findOnPage(page *Page, key K) (int, bool) {
+func findOnPage(page *Page, key types.K) (int, bool) {
 	if key >= page.Items[len(page.Items)-1].Key {
 		eq := key == page.Items[len(page.Items)-1].Key
 		return len(page.Items) - 1 - util.Bool2Int(eq), eq
@@ -54,7 +52,7 @@ func findOnPage(page *Page, key K) (int, bool) {
 	return len(page.Items) - 1, false
 }
 
-func findOnPage1(page *Page, key K) (int, bool) {
+func findOnPage1(page *Page, key types.K) (int, bool) {
 	if key <= page.Items[0].Key {
 		return -1, key == page.Items[0].Key
 	} else if key >= page.Items[len(page.Items)-1].Key {
@@ -112,8 +110,8 @@ func (bt *Btree) newPage(l int) *Page {
 	return &Page{Items: make([]Item, l, bt.Order*2)}
 }
 
-func (bt *Btree) Get(key K) V {
-	var value V
+func (bt *Btree) Get(key types.K) types.V {
+	var value types.V
 
 	bt.init()
 
@@ -134,7 +132,7 @@ func (bt *Btree) Get(key K) V {
 	return value
 }
 
-func (bt *Btree) Del(key K) {
+func (bt *Btree) Del(key types.K) {
 	var childPage *Page
 	var index int
 	var ok bool
@@ -262,7 +260,7 @@ func (bt *Btree) Del(key K) {
 	}
 }
 
-func (bt *Btree) Has(key K) bool {
+func (bt *Btree) Has(key types.K) bool {
 	bt.init()
 
 	page := bt.Root
@@ -282,7 +280,7 @@ func (bt *Btree) Has(key K) bool {
 	return false
 }
 
-func (bt *Btree) Set(key K, value V) {
+func (bt *Btree) Set(key types.K, value types.V) {
 	bt.init()
 
 	page := bt.Root
