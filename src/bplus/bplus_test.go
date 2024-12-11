@@ -9,9 +9,10 @@ import (
 	"types"
 )
 
-func testBplusGet(t *testing.T, g generator.Generator) {
+func testBplusGet(t *testing.T, g generator.Generator, order int) {
 	var m map[types.K]types.V
 	var bt Btree
+	bt.Order = order
 
 	m = make(map[types.K]types.V)
 	for i := 0; i < constants.N; i++ {
@@ -29,8 +30,9 @@ func testBplusGet(t *testing.T, g generator.Generator) {
 	}
 }
 
-func testBplusDel(t *testing.T, g generator.Generator) {
+func testBplusDel(t *testing.T, g generator.Generator, order int) {
 	var bt Btree
+	bt.Order = order
 
 	m := make(map[types.K]struct{})
 	for i := 0; i < constants.N; i++ {
@@ -49,8 +51,9 @@ func testBplusDel(t *testing.T, g generator.Generator) {
 	}
 }
 
-func testBplusHas(t *testing.T, g generator.Generator) {
+func testBplusHas(t *testing.T, g generator.Generator, order int) {
 	var bt Btree
+	bt.Order = order
 
 	m := make(map[types.K]struct{})
 	for i := 0; i < constants.N; i++ {
@@ -67,8 +70,9 @@ func testBplusHas(t *testing.T, g generator.Generator) {
 	}
 }
 
-func testBplusSet(t *testing.T, g generator.Generator) {
+func testBplusSet(t *testing.T, g generator.Generator, order int) {
 	var bt Btree
+	bt.Order = order
 
 	for i := 0; i < constants.N; i++ {
 		k := types.K(g.Generate())
@@ -87,7 +91,7 @@ func testBplusSet(t *testing.T, g generator.Generator) {
 func TestBplus(t *testing.T) {
 	ops := [...]struct {
 		Name string
-		Func func(*testing.T, generator.Generator)
+		Func func(*testing.T, generator.Generator, int)
 	}{
 		{"Get", testBplusGet},
 		{"Del", testBplusDel},
@@ -107,7 +111,11 @@ func TestBplus(t *testing.T) {
 			for _, generator := range generators {
 				generator.Reset()
 				t.Run(generator.String(), func(t *testing.T) {
-					op.Func(t, generator)
+					for order := constants.MinOrder; order <= constants.MaxOrder; order += constants.OrderStep {
+						t.Run(fmt.Sprintf("Order-%d", order), func(t *testing.T) {
+							op.Func(t, generator, order)
+						})
+					}
 				})
 			}
 		})
