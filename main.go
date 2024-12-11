@@ -50,6 +50,7 @@ func BtreeDemo() {
 		bt.Del(key)
 		// fmt.Println(bt)
 	}
+	fmt.Println(bt)
 
 	println("INSERT 2!!!")
 	bt.Root = nil
@@ -61,13 +62,13 @@ func BtreeDemo() {
 	}
 	fmt.Println(bt)
 
-	/*
-		println("DELETE 2!!!")
-		for i := 0; i <= 10; i++ {
-			bt.Del(K(i))
-			fmt.Println(bt)
-		}
-	*/
+	println("DELETE 2!!!")
+	for i := Min; i <= Max; i += Step {
+		key := types.K(i)
+		//fmt.Println("R:", key)
+		bt.Del(key)
+		//fmt.Println(bt)
+	}
 
 	println("INSERT 3!!!")
 	bt.Root = nil
@@ -132,14 +133,14 @@ func BplusDemo() {
 	fmt.Println(bt)
 	BplusPrintSeq(&bt)
 
-	/*
-		println("DELETE!!!")
-		for _, key := range DeleleKeys {
-			fmt.Println("R:", key)
-			bt.Del(key)
-			fmt.Println(bt)
-		}
-	*/
+	println("DELETE!!!")
+	for _, key := range DeleleKeys {
+		//fmt.Println("R:", key)
+		bt.Del(key)
+		//fmt.Println(bt)
+	}
+	fmt.Println(bt)
+	BplusPrintSeq(&bt)
 
 	println("INSERT 2!!!")
 	bt.Root = nil
@@ -152,13 +153,15 @@ func BplusDemo() {
 	fmt.Println(bt)
 	BplusPrintSeq(&bt)
 
-	/*
-		println("DELETE 2!!!")
-		for i := 0; i <= 10; i++ {
-			bt.Del(K(i))
-			fmt.Println(bt)
-		}
-	*/
+	println("DELETE 2!!!")
+	for i := Min; i <= Max; i += Step {
+		key := types.K(i)
+		//fmt.Println("R:", key)
+		bt.Del(key)
+		//fmt.Println(bt)
+	}
+	fmt.Println(bt)
+	BplusPrintSeq(&bt)
 
 	println("INSERT 3!!!")
 	bt.Root = nil
@@ -184,18 +187,17 @@ func BplusDemo() {
 	fmt.Println(bt)
 	BplusPrintSeq(&bt)
 
-	/*
-	   println("DELETE 3!!!")
-
-	   	for key := range m {
-	   		fmt.Println("R:", key)
-	   		bt.Del(key)
-	   		fmt.Println(bt)
-	   		if bt.Has(key) {
-	   			log.Panicf("Still has %v", key)
-	   		}
-	   	}
-	*/
+	println("DELETE 3!!!")
+	for key := range m {
+		//fmt.Println("R:", key)
+		bt.Del(key)
+		//fmt.Println(bt)
+		if bt.Has(key) {
+			log.Panicf("Still has %v", key)
+		}
+	}
+	fmt.Println(bt)
+	BplusPrintSeq(&bt)
 }
 
 func main() {

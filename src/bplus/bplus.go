@@ -36,7 +36,22 @@ type Btree struct {
 	SearchPath []PathItem
 }
 
-const DefaultBtreeOrder = 5
+const DefaultBtreeOrder = 46
+
+func findOnLeaf(l *Leaf, key types.K) (int, bool) {
+	if len(l.Keys) == 0 {
+		return -1, false
+	} else if key >= l.Keys[len(l.Keys)-1] {
+		eq := key == l.Keys[len(l.Keys)-1]
+		return len(l.Keys) - 1 - util.Bool2Int(eq), eq
+	}
+	for i := 0; i < len(l.Keys); i++ {
+		if key <= l.Keys[i] {
+			return i - 1, key == l.Keys[i]
+		}
+	}
+	return len(l.Keys) - 1, false
+}
 
 func findOnNode(n *Node, key types.K) int {
 	if key >= n.Keys[len(n.Keys)-1] {
@@ -48,19 +63,6 @@ func findOnNode(n *Node, key types.K) int {
 		}
 	}
 	return len(n.Keys) - 1
-}
-
-func findOnLeaf(l *Leaf, key types.K) (int, bool) {
-	if key >= l.Keys[len(l.Keys)-1] {
-		eq := key == l.Keys[len(l.Keys)-1]
-		return len(l.Keys) - 1 - util.Bool2Int(eq), eq
-	}
-	for i := 0; i < len(l.Keys); i++ {
-		if key <= l.Keys[i] {
-			return i - 1, key == l.Keys[i]
-		}
-	}
-	return len(l.Keys) - 1, false
 }
 
 func insertChild(children []Page, child Page, index int) []Page {
@@ -84,6 +86,60 @@ func insertValue(values []types.V, value types.V, index int) []types.V {
 	return values
 }
 
+func mergeLeaves(self *Leaf, other *Leaf) *Leaf {
+	l := len(self.Keys)
+
+	self.Keys = self.Keys[:l+len(other.Keys)]
+	copy(self.Keys[l:], other.Keys)
+
+	self.Values = self.Values[:l+len(other.Values)]
+	copy(self.Values[l:], other.Values)
+
+	return self
+}
+
+func mergeNodes(self *Node, other *Node) *Node {
+	l := len(self.Keys)
+
+	self.Keys = self.Keys[:l+len(other.Keys)]
+	copy(self.Keys[l:], other.Keys)
+
+	self.Children = self.Children[:l+len(other.Children)]
+	copy(self.Children[l:], other.Children)
+
+	return self
+}
+
+func removeChild(children []Page, index int) []Page {
+	if (len(children) == 0) || (index < 0) || (index >= len(children)) {
+		return children
+	}
+	if index < len(children)-1 {
+		copy(children[index:], children[index+1:])
+	}
+	return children[:len(children)-1]
+}
+
+func removeKey(keys []types.K, index int) []types.K {
+	if (len(keys) == 0) || (index < 0) || (index >= len(keys)) {
+		return keys
+	}
+	if index < len(keys)-1 {
+		copy(keys[index:], keys[index+1:])
+	}
+	return keys[:len(keys)-1]
+}
+
+func removeValue(values []types.V, index int) []types.V {
+	if (len(values) == 0) || (index < 0) || (index >= len(values)) {
+		return values
+	}
+	if index < len(values)-1 {
+		copy(values[index:], values[index+1:])
+	}
+	return values[:len(values)-1]
+}
+
 func (bt *Btree) newNode(l int) *Node {
 	return &Node{Keys: make([]types.K, l, bt.Order), Children: make([]Page, l, bt.Order)}
 }
@@ -99,9 +155,7 @@ func (bt *Btree) init() {
 	bt.SearchPath = bt.SearchPath[:0]
 }
 
-func (bt *Btree) Begin() *Leaf {
-	page := bt.Root
-
+func minLeaf(page Page) *Leaf {
 	for page != nil {
 		switch p := page.(type) {
 		case *Node:
@@ -110,8 +164,11 @@ func (bt *Btree) Begin() *Leaf {
 			return p
 		}
 	}
-
 	return nil
+}
+
+func (bt *Btree) Begin() *Leaf {
+	return minLeaf(bt.Root)
 }
 
 func (bt *Btree) End() *Leaf {
@@ -119,7 +176,178 @@ func (bt *Btree) End() *Leaf {
 }
 
 func (bt *Btree) Del(key types.K) {
+	bt.init()
 
+	var leaf *Leaf
+	var index int
+	var ok bool
+
+	page := bt.Root
+	for page != nil {
+		switch p := page.(type) {
+		case *Node:
+			index = findOnNode(p, key)
+			if index == -1 {
+				page = p.ChildPage0
+			} else {
+				page = p.Children[index]
+			}
+			bt.SearchPath = append(bt.SearchPath, PathItem{Node: p, Index: index})
+		case *Leaf:
+			index, ok = findOnLeaf(p, key)
+			if !ok {
+				return
+			}
+			leaf = p
+			page = nil
+		}
+	}
+
+	/* Remove key. */
+	half := bt.Order/2 - (1 - bt.Order%2)
+	leaf.Keys = removeKey(leaf.Keys, index+1)
+	leaf.Values = removeValue(leaf.Values, index+1)
+	if (len(leaf.Keys) >= half) || (leaf == bt.Root) {
+		return
+	}
+
+	rootNode := bt.SearchPath[len(bt.SearchPath)-1].Node
+	index = bt.SearchPath[len(bt.SearchPath)-1].Index
+	if index < len(rootNode.Keys)-1 {
+		rightLeaf := rootNode.Children[index+1].(*Leaf)
+		k := (len(rightLeaf.Keys) - half + 1) / 2
+		if k > 0 {
+			leaf.Keys = leaf.Keys[:len(leaf.Keys)+k]
+			copy(leaf.Keys[len(leaf.Keys)-k:], rightLeaf.Keys[:k])
+			copy(rightLeaf.Keys, rightLeaf.Keys[k:])
+			rightLeaf.Keys = rightLeaf.Keys[:len(rightLeaf.Keys)-k]
+
+			leaf.Values = leaf.Values[:len(leaf.Values)+k]
+			copy(leaf.Values[len(leaf.Values)-k:], rightLeaf.Values[:k])
+			copy(rightLeaf.Values, rightLeaf.Values[k:])
+			rightLeaf.Values = rightLeaf.Values[:len(rightLeaf.Values)-k]
+
+			rootNode.Keys[index+1] = rightLeaf.Keys[0]
+			return
+		} else {
+			leaf = mergeLeaves(leaf, rightLeaf)
+			rootNode.Keys = removeKey(rootNode.Keys, index+1)
+			rootNode.Children = removeChild(rootNode.Children, index+1)
+			leaf.Next = rightLeaf.Next
+			/* dispose(rightLeaf) */
+		}
+	} else {
+		var leftLeaf *Leaf
+		if index == 0 {
+			leftLeaf = rootNode.ChildPage0.(*Leaf)
+		} else {
+			leftLeaf = rootNode.Children[index-1].(*Leaf)
+		}
+
+		k := (len(leftLeaf.Keys) - half + 1) / 2
+		if k > 0 {
+			leaf.Keys = leaf.Keys[:len(leaf.Keys)+k]
+			copy(leaf.Keys[k:], leaf.Keys)
+			copy(leaf.Keys, leftLeaf.Keys[len(leftLeaf.Keys)-k:])
+			leftLeaf.Keys = leftLeaf.Keys[:len(leftLeaf.Keys)-k]
+
+			leaf.Values = leaf.Values[:len(leaf.Values)+k]
+			copy(leaf.Values[k:], leaf.Values)
+			copy(leaf.Values, leftLeaf.Values[len(leftLeaf.Values)-k:])
+			leftLeaf.Values = leftLeaf.Values[:len(leftLeaf.Values)-k]
+
+			rootNode.Keys[index] = leaf.Keys[0]
+			return
+		} else {
+			leftLeaf = mergeLeaves(leftLeaf, leaf)
+			rootNode.Keys = removeKey(rootNode.Keys, index)
+			rootNode.Children = removeChild(rootNode.Children, index)
+			leftLeaf.Next = leaf.Next
+			/* dispose(leaf) */
+		}
+	}
+
+	/* Update indexing structure. */
+	for p := len(bt.SearchPath) - 2; p >= 0; p-- {
+		node := rootNode
+		if len(node.Keys) >= half {
+			return
+		}
+
+		rootNode = bt.SearchPath[p].Node
+		index := bt.SearchPath[p].Index
+
+		if index < len(rootNode.Keys)-1 {
+			rightNode := rootNode.Children[index+1].(*Node)
+			k := (len(rightNode.Keys) - half + 1) / 2
+			if k > 0 {
+				node.Keys = node.Keys[:len(node.Keys)+k]
+				node.Keys[len(node.Keys)-k] = minLeaf(rightNode).Keys[0]
+				copy(node.Keys[len(node.Keys)-k+1:], rightNode.Keys[:k-1])
+				copy(rightNode.Keys, rightNode.Keys[k:])
+				rightNode.Keys = rightNode.Keys[:len(rightNode.Keys)-k]
+
+				node.Children = node.Children[:len(node.Children)+k]
+				node.Children[len(node.Children)-k] = rightNode.ChildPage0
+				copy(node.Children[len(node.Children)-k+1:], rightNode.Children[:k-1])
+				rightNode.ChildPage0 = rightNode.Children[k-1]
+				copy(rightNode.Children, rightNode.Children[k:])
+				rightNode.Children = rightNode.Children[:len(rightNode.Children)-k]
+
+				rootNode.Keys[index+1] = minLeaf(rightNode.ChildPage0).Keys[0]
+				return
+			} else {
+				leaf := minLeaf(rightNode.ChildPage0)
+				node.Keys = append(node.Keys, leaf.Keys[0])
+				node.Children = append(node.Children, rightNode.ChildPage0)
+
+				node = mergeNodes(node, rightNode)
+				rootNode.Keys = removeKey(rootNode.Keys, index+1)
+				rootNode.Children = removeChild(rootNode.Children, index+1)
+				/* dispose(rightNode) */
+			}
+		} else {
+			var leftNode *Node
+			if index == 0 {
+				leftNode = rootNode.ChildPage0.(*Node)
+			} else {
+				leftNode = rootNode.Children[index-1].(*Node)
+			}
+
+			k := (len(leftNode.Keys) - half + 1) / 2
+			if k > 0 {
+				node.Keys = node.Keys[:len(node.Keys)+k]
+				copy(node.Keys[k:], node.Keys)
+				node.Keys[0] = minLeaf(node).Keys[0]
+				copy(node.Keys[1:], leftNode.Keys[len(leftNode.Keys)-k+1:])
+				leftNode.Keys = leftNode.Keys[:len(leftNode.Keys)-k]
+
+				node.Children = node.Children[:len(node.Children)+k]
+				copy(node.Children[k:], node.Children)
+				node.Children[0] = node.ChildPage0
+				node.ChildPage0 = leftNode.Children[len(leftNode.Children)-k]
+				copy(node.Children[1:], leftNode.Children[len(leftNode.Children)-k+1:])
+				leftNode.Children = leftNode.Children[:len(leftNode.Children)-k]
+
+				rootNode.Keys[index] = minLeaf(node.ChildPage0).Keys[0]
+				return
+			} else {
+				leaf := minLeaf(node.ChildPage0)
+				leftNode.Keys = append(leftNode.Keys, leaf.Keys[0])
+				leftNode.Children = append(leftNode.Children, node.ChildPage0)
+
+				leftNode = mergeNodes(leftNode, node)
+				rootNode.Keys = removeKey(rootNode.Keys, index)
+				rootNode.Children = removeChild(rootNode.Children, index)
+				/* dispose(node) */
+			}
+		}
+	}
+
+	rootNode = bt.Root.(*Node)
+	if len(rootNode.Keys) == 0 {
+		bt.Root = rootNode.ChildPage0
+	}
 }
 
 func (bt *Btree) Get(key types.K) types.V {
@@ -208,7 +436,7 @@ func (bt *Btree) Set(key types.K, value types.V) {
 		}
 	}
 
-	half := bt.Order >> 1
+	half := bt.Order / 2
 	var newPage Page
 	newKey := key
 

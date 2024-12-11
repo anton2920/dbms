@@ -29,7 +29,6 @@ func testBplusGet(t *testing.T, g generator.Generator) {
 	}
 }
 
-/*
 func testBplusDel(t *testing.T, g generator.Generator) {
 	var bt Btree
 
@@ -49,7 +48,6 @@ func testBplusDel(t *testing.T, g generator.Generator) {
 		}
 	}
 }
-*/
 
 func testBplusHas(t *testing.T, g generator.Generator) {
 	var bt Btree
@@ -92,7 +90,7 @@ func TestBplus(t *testing.T) {
 		Func func(*testing.T, generator.Generator)
 	}{
 		{"Get", testBplusGet},
-		// {"Del", testBplusDel},
+		{"Del", testBplusDel},
 		{"Has", testBplusHas},
 		{"Set", testBplusSet},
 	}
@@ -133,7 +131,6 @@ func benchmarkBplusGet(b *testing.B, g generator.Generator, order int) {
 	}
 }
 
-/*
 func benchmarkBplusDel(b *testing.B, g generator.Generator, order int) {
 	b.Helper()
 
@@ -150,7 +147,6 @@ func benchmarkBplusDel(b *testing.B, g generator.Generator, order int) {
 		bt.Del(g.Generate())
 	}
 }
-*/
 
 func benchmarkBplusSet(b *testing.B, g generator.Generator, order int) {
 	b.Helper()
@@ -169,7 +165,7 @@ func BenchmarkBplus(b *testing.B) {
 		Func func(*testing.B, generator.Generator, int)
 	}{
 		{"Get", benchmarkBplusGet},
-		//{"Del", benchmarkBplusDel},
+		{"Del", benchmarkBplusDel},
 		{"Set", benchmarkBplusSet},
 	}
 
