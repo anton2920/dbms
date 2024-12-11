@@ -38,9 +38,9 @@ func BtreeDemo() {
 
 	println("INSERT 1!!!")
 	for _, key := range InsertKeys {
-		// fmt.Println("I:", key)
+		//fmt.Println("I:", key)
 		bt.Set(key, 0)
-		// fmt.Println(bt)
+		//fmt.Println(bt)
 	}
 	fmt.Println(bt)
 
