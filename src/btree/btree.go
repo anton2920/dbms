@@ -182,7 +182,6 @@ func (bt *Btree) Del(key types.K) {
 		}
 	}
 
-	// runtime.Breakpoint()
 	half := bt.Order/2 - (1 - bt.Order%2)
 	if len(page.Items) < half {
 		for p := len(bt.SearchPath) - 1; p >= 0; p-- {

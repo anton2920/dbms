@@ -152,6 +152,8 @@ func (bt *Btree) Del(key types.K) {
 func (bt *Btree) Get(key types.K) types.V {
 	var v types.V
 
+	bt.init()
+
 	page := bt.Root
 	for page != nil {
 		index, ok := page.Find(key)
@@ -167,6 +169,8 @@ func (bt *Btree) Get(key types.K) types.V {
 }
 
 func (bt *Btree) Has(key types.K) bool {
+	bt.init()
+
 	page := bt.Root
 	for page != nil {
 		index, ok := page.Find(key)
@@ -176,6 +180,7 @@ func (bt *Btree) Has(key types.K) bool {
 		childPage := page.Child(index)
 		page = childPage
 	}
+
 	return false
 }
 
@@ -194,9 +199,6 @@ func (bt *Btree) Set(key types.K, value types.V) {
 		index, ok := page.Find(key)
 		if ok {
 			leaf := page.(*Leaf)
-			if leaf.Keys[index+1] != key {
-				panic("NEQ")
-			}
 			leaf.Values[index+1] = value
 			return
 		}

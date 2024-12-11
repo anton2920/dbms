@@ -145,9 +145,9 @@ func BplusDemo() {
 	bt.Root = nil
 	for i := Min; i <= Max; i += Step {
 		key := types.K(i)
-		fmt.Println("I:", key)
+		//fmt.Println("I:", key)
 		bt.Set(key, 0)
-		fmt.Println(bt)
+		//fmt.Println(bt)
 	}
 	fmt.Println(bt)
 	BplusPrintSeq(&bt)
