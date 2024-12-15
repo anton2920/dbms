@@ -42,6 +42,7 @@ type Tree struct {
 
 const DefaultOrder = 46
 
+/*
 func findOnLeaf(l *Leaf, key container.Key) (int, bool) {
 	if len(l.Keys) == 0 {
 		return -1, false
@@ -69,6 +70,69 @@ func findOnNode(n *Node, key container.Key) int {
 		}
 	}
 	return len(n.Keys) - 1
+}
+*/
+
+func findOnLeaf(leaf *Leaf, key container.Key) (int, bool) {
+	if len(leaf.Keys) == 0 {
+		return -1, false
+	} else {
+		less := key.Less(leaf.Keys[0])
+		rless := leaf.Keys[0].Less(key)
+		if (less) || ((!less) && (!rless)) {
+			return -1, (!less) && (!rless)
+		} else if !key.Less(leaf.Keys[len(leaf.Keys)-1]) {
+			rless := leaf.Keys[len(leaf.Keys)-1].Less(key)
+			return len(leaf.Keys) - 1 - util.Bool2Int(!rless), !rless
+		}
+	}
+
+	l := 1
+	r := len(leaf.Keys) - 2
+	for {
+		k := (l + r) / 2
+
+		less := key.Less(leaf.Keys[k])
+		rless := leaf.Keys[k].Less(key)
+		if !less {
+			l = k + 1
+		}
+		if (less) || ((!less) && (!rless)) {
+			r = k - 1
+		}
+		if l > r {
+			break
+		}
+	}
+
+	return r, l-r > 1
+}
+
+func findOnNode(node *Node, key container.Key) int {
+	if key.Less(node.Keys[0]) {
+		return -1
+	} else if !key.Less(node.Keys[len(node.Keys)-1]) {
+		return len(node.Keys) - 1
+	}
+
+	l := 1
+	r := len(node.Keys) - 2
+	for {
+		k := (l + r) / 2
+
+		less := key.Less(node.Keys[k])
+		if !less {
+			l = k + 1
+		}
+		if less {
+			r = k - 1
+		}
+		if l > r {
+			break
+		}
+	}
+
+	return r
 }
 
 func insertChild(children []Page, child Page, index int) []Page {

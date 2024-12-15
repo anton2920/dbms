@@ -37,6 +37,38 @@ const DefaultOrder = 45
 
 /* findOnPage returns index of element whose key is <= 'key'. Returns true, if ==. */
 func findOnPage(page *Page, key container.Key) (int, bool) {
+	less := key.Less(page.Items[0].Key)
+	rless := page.Items[0].Key.Less(key)
+	if (less) || ((!less) && (!rless)) {
+		return -1, (!less) && (!rless)
+	} else if !key.Less(page.Items[len(page.Items)-1].Key) {
+		rless := page.Items[len(page.Items)-1].Key.Less(key)
+		return len(page.Items) - 1 - util.Bool2Int(!rless), !rless
+	}
+
+	l := 1
+	r := len(page.Items) - 2
+	for {
+		k := (l + r) / 2
+
+		less := key.Less(page.Items[k].Key)
+		rless := page.Items[k].Key.Less(key)
+		if !less {
+			l = k + 1
+		}
+		if (less) || ((!less) && (!rless)) {
+			r = k - 1
+		}
+		if l > r {
+			break
+		}
+	}
+
+	return r, l-r > 1
+}
+
+/*
+func findOnPage(page *Page, key container.Key) (int, bool) {
 	if !key.Less(page.Items[len(page.Items)-1].Key) {
 		eq := !page.Items[len(page.Items)-1].Key.Less(key)
 		return len(page.Items) - 1 - util.Bool2Int(eq), eq
@@ -50,6 +82,7 @@ func findOnPage(page *Page, key container.Key) (int, bool) {
 	}
 	return len(page.Items) - 1, false
 }
+*/
 
 func removeItemAtIndex(vs []Item, i int) []Item {
 	if (len(vs) == 0) || (i < 0) || (i >= len(vs)) {
