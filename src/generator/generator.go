@@ -5,7 +5,6 @@ import (
 	"math/rand"
 
 	"constants"
-	"types"
 
 	"github.com/anton2920/gofa/util"
 )
@@ -13,7 +12,7 @@ import (
 type Generator interface {
 	fmt.Stringer
 
-	Generate() types.K
+	Generate() int
 	Reset()
 }
 
@@ -21,8 +20,8 @@ type RandomGenerator struct {
 	Rng *rand.Rand
 }
 
-func (g *RandomGenerator) Generate() types.K {
-	return types.K(g.Rng.Int())
+func (g *RandomGenerator) Generate() int {
+	return g.Rng.Int()
 }
 
 func (g *RandomGenerator) Reset() {
@@ -37,10 +36,10 @@ type AscendingGenerator struct {
 	Current int
 }
 
-func (g *AscendingGenerator) Generate() types.K {
+func (g *AscendingGenerator) Generate() int {
 	ret := g.Current
 	g.Current++
-	return types.K(ret)
+	return ret
 }
 
 func (g *AscendingGenerator) Reset() {
@@ -55,10 +54,10 @@ type DescendingGenerator struct {
 	Current int
 }
 
-func (g *DescendingGenerator) Generate() types.K {
+func (g *DescendingGenerator) Generate() int {
 	ret := g.Current
 	g.Current--
-	return types.K(ret)
+	return int(ret)
 }
 
 func (g *DescendingGenerator) Reset() {
@@ -73,10 +72,10 @@ type SawtoothGenerator struct {
 	Current int
 }
 
-func (g *SawtoothGenerator) Generate() types.K {
+func (g *SawtoothGenerator) Generate() int {
 	ret := g.Current
 	g.Current = -g.Current + (1 * -util.Bool2Int(g.Current >= 0))
-	return types.K(ret)
+	return ret
 }
 
 func (g *SawtoothGenerator) Reset() {

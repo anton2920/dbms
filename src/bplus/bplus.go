@@ -4,23 +4,24 @@ import (
 	"fmt"
 	"strings"
 
-	"types"
-
+	"github.com/anton2920/gofa/container"
 	"github.com/anton2920/gofa/util"
 )
 
 type Page interface{}
 
 type Node struct {
-	Keys       []types.K
+	Keys       []container.Key
 	Children   []Page
 	ChildPage0 Page
 }
 
 type Leaf struct {
-	Keys   []types.K
-	Values []types.V
-	Next   *Leaf
+	Keys   []container.Key
+	Values []interface{}
+
+	Prev *Leaf
+	Next *Leaf
 }
 
 type PathItem struct {
@@ -28,37 +29,42 @@ type PathItem struct {
 	Index int
 }
 
-type Btree struct {
+type Tree struct {
 	Root Page
 
 	Order int
 
 	SearchPath []PathItem
+
+	endSentinel  Leaf
+	rendSentinel Leaf
 }
 
-const DefaultBtreeOrder = 46
+const DefaultOrder = 46
 
-func findOnLeaf(l *Leaf, key types.K) (int, bool) {
+func findOnLeaf(l *Leaf, key container.Key) (int, bool) {
 	if len(l.Keys) == 0 {
 		return -1, false
-	} else if key >= l.Keys[len(l.Keys)-1] {
-		eq := key == l.Keys[len(l.Keys)-1]
+	} else if !key.Less(l.Keys[len(l.Keys)-1]) {
+		eq := !l.Keys[len(l.Keys)-1].Less(key)
 		return len(l.Keys) - 1 - util.Bool2Int(eq), eq
 	}
 	for i := 0; i < len(l.Keys); i++ {
-		if key <= l.Keys[i] {
-			return i - 1, key == l.Keys[i]
+		less := key.Less(l.Keys[i])
+		rless := l.Keys[i].Less(key)
+		if (less) || ((!less) && (!rless)) {
+			return i - 1, (!less) && (!rless)
 		}
 	}
 	return len(l.Keys) - 1, false
 }
 
-func findOnNode(n *Node, key types.K) int {
-	if key >= n.Keys[len(n.Keys)-1] {
+func findOnNode(n *Node, key container.Key) int {
+	if !key.Less(n.Keys[len(n.Keys)-1]) {
 		return len(n.Keys) - 1
 	}
 	for i := 0; i < len(n.Keys); i++ {
-		if key < n.Keys[i] {
+		if key.Less(n.Keys[i]) {
 			return i - 1
 		}
 	}
@@ -72,14 +78,14 @@ func insertChild(children []Page, child Page, index int) []Page {
 	return children
 }
 
-func insertKey(keys []types.K, key types.K, index int) []types.K {
+func insertKey(keys []container.Key, key container.Key, index int) []container.Key {
 	keys = keys[:len(keys)+1]
 	copy(keys[index+1:], keys[index:])
 	keys[index] = key
 	return keys
 }
 
-func insertValue(values []types.V, value types.V, index int) []types.V {
+func insertValue(values []interface{}, value interface{}, index int) []interface{} {
 	values = values[:len(values)+1]
 	copy(values[index+1:], values[index:])
 	values[index] = value
@@ -120,7 +126,7 @@ func removeChild(children []Page, index int) []Page {
 	return children[:len(children)-1]
 }
 
-func removeKey(keys []types.K, index int) []types.K {
+func removeKey(keys []container.Key, index int) []container.Key {
 	if (len(keys) == 0) || (index < 0) || (index >= len(keys)) {
 		return keys
 	}
@@ -130,7 +136,7 @@ func removeKey(keys []types.K, index int) []types.K {
 	return keys[:len(keys)-1]
 }
 
-func removeValue(values []types.V, index int) []types.V {
+func removeValue(values []interface{}, index int) []interface{} {
 	if (len(values) == 0) || (index < 0) || (index >= len(values)) {
 		return values
 	}
@@ -140,19 +146,19 @@ func removeValue(values []types.V, index int) []types.V {
 	return values[:len(values)-1]
 }
 
-func (bt *Btree) newNode(l int) *Node {
-	return &Node{Keys: make([]types.K, l, bt.Order), Children: make([]Page, l, bt.Order)}
+func (t *Tree) newNode(l int) *Node {
+	return &Node{Keys: make([]container.Key, l, t.Order), Children: make([]Page, l, t.Order)}
 }
 
-func (bt *Btree) newLeaf(l int) *Leaf {
-	return &Leaf{Keys: make([]types.K, l, bt.Order), Values: make([]types.V, l, bt.Order)}
+func (t *Tree) newLeaf(l int) *Leaf {
+	return &Leaf{Keys: make([]container.Key, l, t.Order), Values: make([]interface{}, l, t.Order)}
 }
 
-func (bt *Btree) init() {
-	if bt.Order == 0 {
-		bt.Order = DefaultBtreeOrder
+func (t *Tree) init() {
+	if t.Order == 0 {
+		t.Order = DefaultOrder
 	}
-	bt.SearchPath = bt.SearchPath[:0]
+	t.SearchPath = t.SearchPath[:0]
 }
 
 func minLeaf(page Page) *Leaf {
@@ -167,22 +173,54 @@ func minLeaf(page Page) *Leaf {
 	return nil
 }
 
-func (bt *Btree) Begin() *Leaf {
-	return minLeaf(bt.Root)
-}
-
-func (bt *Btree) End() *Leaf {
+func maxLeaf(page Page) *Leaf {
+	for page != nil {
+		switch p := page.(type) {
+		case *Node:
+			page = p.Children[len(p.Children)-1]
+		case *Leaf:
+			return p
+		}
+	}
 	return nil
 }
 
-func (bt *Btree) Del(key types.K) {
-	bt.init()
+func (t *Tree) Begin() *Leaf {
+	l := minLeaf(t.Root)
+	if l == nil {
+		l = &t.endSentinel
+	}
+	return l
+}
+
+func (t *Tree) End() *Leaf {
+	return &t.endSentinel
+}
+
+func (t *Tree) Rbegin() *Leaf {
+	l := maxLeaf(t.Root)
+	if l == nil {
+		l = &t.rendSentinel
+	}
+	return l
+}
+
+func (t *Tree) Rend() *Leaf {
+	return &t.rendSentinel
+}
+
+func (t *Tree) Clear() {
+	t.Root = nil
+}
+
+func (t *Tree) Del(key container.Key) {
+	t.init()
 
 	var leaf *Leaf
 	var index int
 	var ok bool
 
-	page := bt.Root
+	page := t.Root
 	for page != nil {
 		switch p := page.(type) {
 		case *Node:
@@ -192,7 +230,7 @@ func (bt *Btree) Del(key types.K) {
 			} else {
 				page = p.Children[index]
 			}
-			bt.SearchPath = append(bt.SearchPath, PathItem{Node: p, Index: index})
+			t.SearchPath = append(t.SearchPath, PathItem{Node: p, Index: index})
 		case *Leaf:
 			index, ok = findOnLeaf(p, key)
 			if !ok {
@@ -204,15 +242,15 @@ func (bt *Btree) Del(key types.K) {
 	}
 
 	/* Remove key. */
-	half := bt.Order/2 - (1 - bt.Order%2)
+	half := t.Order/2 - (1 - t.Order%2)
 	leaf.Keys = removeKey(leaf.Keys, index+1)
 	leaf.Values = removeValue(leaf.Values, index+1)
-	if (len(leaf.Keys) >= half) || (leaf == bt.Root) {
+	if (len(leaf.Keys) >= half) || (leaf == t.Root) {
 		return
 	}
 
-	rootNode := bt.SearchPath[len(bt.SearchPath)-1].Node
-	index = bt.SearchPath[len(bt.SearchPath)-1].Index
+	rootNode := t.SearchPath[len(t.SearchPath)-1].Node
+	index = t.SearchPath[len(t.SearchPath)-1].Index
 	if index < len(rootNode.Keys)-1 {
 		rightLeaf := rootNode.Children[index+1].(*Leaf)
 		k := (len(rightLeaf.Keys) - half + 1) / 2
@@ -234,6 +272,7 @@ func (bt *Btree) Del(key types.K) {
 			rootNode.Keys = removeKey(rootNode.Keys, index+1)
 			rootNode.Children = removeChild(rootNode.Children, index+1)
 			leaf.Next = rightLeaf.Next
+			leaf.Next.Prev = leaf
 			/* dispose(rightLeaf) */
 		}
 	} else {
@@ -263,19 +302,20 @@ func (bt *Btree) Del(key types.K) {
 			rootNode.Keys = removeKey(rootNode.Keys, index)
 			rootNode.Children = removeChild(rootNode.Children, index)
 			leftLeaf.Next = leaf.Next
+			leftLeaf.Next.Prev = leftLeaf
 			/* dispose(leaf) */
 		}
 	}
 
 	/* Update indexing structure. */
-	for p := len(bt.SearchPath) - 2; p >= 0; p-- {
+	for p := len(t.SearchPath) - 2; p >= 0; p-- {
 		node := rootNode
 		if len(node.Keys) >= half {
 			return
 		}
 
-		rootNode = bt.SearchPath[p].Node
-		index := bt.SearchPath[p].Index
+		rootNode = t.SearchPath[p].Node
+		index := t.SearchPath[p].Index
 
 		if index < len(rootNode.Keys)-1 {
 			rightNode := rootNode.Children[index+1].(*Node)
@@ -344,18 +384,18 @@ func (bt *Btree) Del(key types.K) {
 		}
 	}
 
-	rootNode = bt.Root.(*Node)
+	rootNode = t.Root.(*Node)
 	if len(rootNode.Keys) == 0 {
-		bt.Root = rootNode.ChildPage0
+		t.Root = rootNode.ChildPage0
 	}
 }
 
-func (bt *Btree) Get(key types.K) types.V {
-	var v types.V
+func (t *Tree) Get(key container.Key) interface{} {
+	var v interface{}
 
-	bt.init()
+	t.init()
 
-	page := bt.Root
+	page := t.Root
 	for page != nil {
 		switch p := page.(type) {
 		case *Node:
@@ -377,10 +417,10 @@ func (bt *Btree) Get(key types.K) types.V {
 	return v
 }
 
-func (bt *Btree) Has(key types.K) bool {
-	bt.init()
+func (t *Tree) Has(key container.Key) bool {
+	t.init()
 
-	page := bt.Root
+	page := t.Root
 	for page != nil {
 		switch p := page.(type) {
 		case *Node:
@@ -399,13 +439,15 @@ func (bt *Btree) Has(key types.K) bool {
 	return false
 }
 
-func (bt *Btree) Set(key types.K, value types.V) {
-	bt.init()
-	if bt.Root == nil {
-		leaf := bt.newLeaf(1)
+func (t *Tree) Set(key container.Key, value interface{}) {
+	t.init()
+	if t.Root == nil {
+		leaf := t.newLeaf(1)
 		leaf.Keys[0] = key
 		leaf.Values[0] = value
-		bt.Root = leaf
+		leaf.Prev = &t.rendSentinel
+		leaf.Next = &t.endSentinel
+		t.Root = leaf
 		return
 	}
 
@@ -413,7 +455,7 @@ func (bt *Btree) Set(key types.K, value types.V) {
 	var index int
 	var ok bool
 
-	page := bt.Root
+	page := t.Root
 	for page != nil {
 		switch p := page.(type) {
 		case *Node:
@@ -423,7 +465,7 @@ func (bt *Btree) Set(key types.K, value types.V) {
 			} else {
 				page = p.Children[index]
 			}
-			bt.SearchPath = append(bt.SearchPath, PathItem{Node: p, Index: index})
+			t.SearchPath = append(t.SearchPath, PathItem{Node: p, Index: index})
 		case *Leaf:
 			index, ok = findOnLeaf(p, key)
 			if ok {
@@ -436,19 +478,19 @@ func (bt *Btree) Set(key types.K, value types.V) {
 		}
 	}
 
-	half := bt.Order / 2
+	half := t.Order / 2
 	var newPage Page
 	newKey := key
 
 	/* Insert new key. */
 	leaf.Keys = insertKey(leaf.Keys, key, index+1)
 	leaf.Values = insertValue(leaf.Values, value, index+1)
-	if len(leaf.Keys) < bt.Order {
+	if len(leaf.Keys) < t.Order {
 		return
 	}
 
 	/* Split leaf into two. */
-	newLeaf := bt.newLeaf(half + (bt.Order % 2))
+	newLeaf := t.newLeaf(half + (t.Order % 2))
 	newKey = leaf.Keys[half]
 	newPage = newLeaf
 
@@ -458,22 +500,24 @@ func (bt *Btree) Set(key types.K, value types.V) {
 	copy(newLeaf.Values, leaf.Values[half:])
 	leaf.Values = leaf.Values[:half]
 
+	newLeaf.Prev = leaf
 	newLeaf.Next = leaf.Next
+	newLeaf.Next.Prev = newLeaf
 	leaf.Next = newLeaf
 
 	/* Update indexing structure. */
-	for p := len(bt.SearchPath) - 1; p >= 0; p-- {
-		index := bt.SearchPath[p].Index
-		node := bt.SearchPath[p].Node
+	for p := len(t.SearchPath) - 1; p >= 0; p-- {
+		index := t.SearchPath[p].Index
+		node := t.SearchPath[p].Node
 
 		node.Keys = insertKey(node.Keys, newKey, index+1)
 		node.Children = insertChild(node.Children, newPage, index+1)
-		if len(node.Keys) < bt.Order {
+		if len(node.Keys) < t.Order {
 			return
 		}
 
 		/* Split node in two. */
-		newNode := bt.newNode(half - (1 - bt.Order%2))
+		newNode := t.newNode(half - (1 - t.Order%2))
 		newKey = node.Keys[half]
 		newPage = newNode
 
@@ -485,15 +529,15 @@ func (bt *Btree) Set(key types.K, value types.V) {
 		node.Children = node.Children[:half]
 	}
 
-	tmp := bt.Root
-	node := bt.newNode(1)
+	tmp := t.Root
+	node := t.newNode(1)
 	node.Keys[0] = newKey
 	node.ChildPage0 = tmp
 	node.Children[0] = newPage
-	bt.Root = node
+	t.Root = node
 }
 
-func (bt *Btree) stringImpl(sb *strings.Builder, page Page, level int) {
+func (t *Tree) stringImpl(sb *strings.Builder, page Page, level int) {
 	if page != nil {
 		for i := 0; i < level; i++ {
 			sb.WriteRune('\t')
@@ -501,13 +545,13 @@ func (bt *Btree) stringImpl(sb *strings.Builder, page Page, level int) {
 		switch page := page.(type) {
 		case *Node:
 			for i := 0; i < len(page.Keys); i++ {
-				fmt.Fprintf(sb, "%4d", page.Keys[i])
+				fmt.Fprintf(sb, "%4v", page.Keys[i])
 			}
 			sb.WriteRune('\n')
 
-			bt.stringImpl(sb, page.ChildPage0, level+1)
+			t.stringImpl(sb, page.ChildPage0, level+1)
 			for i := 0; i < len(page.Children); i++ {
-				bt.stringImpl(sb, page.Children[i], level+1)
+				t.stringImpl(sb, page.Children[i], level+1)
 			}
 		case *Leaf:
 			for i := 0; i < len(page.Keys); i++ {
@@ -518,10 +562,10 @@ func (bt *Btree) stringImpl(sb *strings.Builder, page Page, level int) {
 	}
 }
 
-func (bt Btree) String() string {
+func (t Tree) String() string {
 	var sb strings.Builder
 
-	bt.stringImpl(&sb, bt.Root, 0)
+	t.stringImpl(&sb, t.Root, 0)
 
 	return sb.String()
 }

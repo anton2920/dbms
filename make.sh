@@ -41,12 +41,13 @@ case $1 in
 		run rm -rf /tmp/cover*
 		;;
 	check)
+		CGO_ENABLED=1; export CGO_ENABLED
 		run $0 $VERBOSITYFLAGS vet
 		run go test $VERBOSITYFLAGS -cover -gcflags='all=-N -l' ./...
 		;;
 	check-bench)
 		run $0 $VERBOSITYFLAGS vet
-		run run go test $VERBOSITYFLAGS -bench=. -run=^Benchmark -count=8 -benchtime=1000000x ./...
+		run run go test $VERBOSITYFLAGS -bench=. -run=^Benchmark -count=8 -benchtime=10000x ./...
 		;;
 	check-bench-cpu)
 		run $0 $VERBOSITYFLAGS test
