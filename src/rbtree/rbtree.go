@@ -41,12 +41,12 @@ type Node struct {
 func (tree *Tree) lookup(key container.Key) *Node {
 	node := tree.Root
 	for node != nil {
-		if key.Less(node.Key) {
+		cmp := key.Compare(node.Key)
+		if cmp == 0 {
+			return node
+		} else if cmp < 0 {
 			node = node.Left
 		} else {
-			if !node.Key.Less(key) {
-				return node
-			}
 			node = node.Right
 		}
 	}
@@ -105,7 +105,11 @@ func (tree *Tree) Set(key container.Key, value interface{}) {
 		node := tree.Root
 		loop := true
 		for loop {
-			if key.Less(node.Key) {
+			cmp := key.Compare(node.Key)
+			if cmp == 0 {
+				node.Value = value
+				return
+			} else if cmp < 0 {
 				if node.Left == nil {
 					node.Left = &Node{Key: key, Value: value, color: red}
 					insertedNode = node.Left
@@ -114,10 +118,6 @@ func (tree *Tree) Set(key container.Key, value interface{}) {
 					node = node.Left
 				}
 			} else {
-				if !node.Key.Less(key) {
-					node.Value = value
-					return
-				}
 				if node.Right == nil {
 					node.Right = &Node{Key: key, Value: value, color: red}
 					insertedNode = node.Right

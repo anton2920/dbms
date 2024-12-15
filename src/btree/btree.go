@@ -37,13 +37,15 @@ const DefaultOrder = 45
 
 /* findOnPage returns index of element whose key is <= 'key'. Returns true, if ==. */
 func findOnPage(page *Page, key container.Key) (int, bool) {
-	less := key.Less(page.Items[0].Key)
-	rless := page.Items[0].Key.Less(key)
-	if (less) || ((!less) && (!rless)) {
-		return -1, (!less) && (!rless)
-	} else if !key.Less(page.Items[len(page.Items)-1].Key) {
-		rless := page.Items[len(page.Items)-1].Key.Less(key)
-		return len(page.Items) - 1 - util.Bool2Int(!rless), !rless
+	cmp := key.Compare(page.Items[0].Key)
+	if cmp <= 0 {
+		return -1, cmp == 0
+	}
+
+	cmp = key.Compare(page.Items[len(page.Items)-1].Key)
+	if cmp >= 0 {
+		eq := cmp == 0
+		return len(page.Items) - 1 - util.Bool2Int(eq), eq
 	}
 
 	l := 1
@@ -51,12 +53,11 @@ func findOnPage(page *Page, key container.Key) (int, bool) {
 	for {
 		k := (l + r) / 2
 
-		less := key.Less(page.Items[k].Key)
-		rless := page.Items[k].Key.Less(key)
-		if !less {
+		cmp := key.Compare(page.Items[k].Key)
+		if cmp >= 0 {
 			l = k + 1
 		}
-		if (less) || ((!less) && (!rless)) {
+		if cmp <= 0 {
 			r = k - 1
 		}
 		if l > r {

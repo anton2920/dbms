@@ -76,15 +76,17 @@ func findOnNode(n *Node, key container.Key) int {
 func findOnLeaf(leaf *Leaf, key container.Key) (int, bool) {
 	if len(leaf.Keys) == 0 {
 		return -1, false
-	} else {
-		less := key.Less(leaf.Keys[0])
-		rless := leaf.Keys[0].Less(key)
-		if (less) || ((!less) && (!rless)) {
-			return -1, (!less) && (!rless)
-		} else if !key.Less(leaf.Keys[len(leaf.Keys)-1]) {
-			rless := leaf.Keys[len(leaf.Keys)-1].Less(key)
-			return len(leaf.Keys) - 1 - util.Bool2Int(!rless), !rless
-		}
+	}
+
+	cmp := key.Compare(leaf.Keys[0])
+	if cmp <= 0 {
+		return -1, cmp == 0
+	}
+
+	cmp = key.Compare(leaf.Keys[len(leaf.Keys)-1])
+	if cmp >= 0 {
+		eq := cmp == 0
+		return len(leaf.Keys) - 1 - util.Bool2Int(eq), eq
 	}
 
 	l := 1
@@ -92,12 +94,11 @@ func findOnLeaf(leaf *Leaf, key container.Key) (int, bool) {
 	for {
 		k := (l + r) / 2
 
-		less := key.Less(leaf.Keys[k])
-		rless := leaf.Keys[k].Less(key)
-		if !less {
+		eq := key.Compare(leaf.Keys[k])
+		if eq >= 0 {
 			l = k + 1
 		}
-		if (less) || ((!less) && (!rless)) {
+		if eq <= 0 {
 			r = k - 1
 		}
 		if l > r {
@@ -109,9 +110,10 @@ func findOnLeaf(leaf *Leaf, key container.Key) (int, bool) {
 }
 
 func findOnNode(node *Node, key container.Key) int {
-	if key.Less(node.Keys[0]) {
+	if key.Compare(node.Keys[0]) < 0 {
 		return -1
-	} else if !key.Less(node.Keys[len(node.Keys)-1]) {
+	}
+	if key.Compare(node.Keys[len(node.Keys)-1]) >= 0 {
 		return len(node.Keys) - 1
 	}
 
@@ -120,11 +122,11 @@ func findOnNode(node *Node, key container.Key) int {
 	for {
 		k := (l + r) / 2
 
-		less := key.Less(node.Keys[k])
-		if !less {
+		cmp := key.Compare(node.Keys[k])
+		if cmp >= 0 {
 			l = k + 1
 		}
-		if less {
+		if cmp < 0 {
 			r = k - 1
 		}
 		if l > r {
