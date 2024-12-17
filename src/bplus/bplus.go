@@ -172,30 +172,6 @@ func removeAtIndex[T any](vs []T, i int) []T {
 	return vs[:len(vs)-1]
 }
 
-func minLeaf[K cmp.Ordered, V any](page Page) *Leaf[K, V] {
-	for page != nil {
-		switch p := page.(type) {
-		case *Node[K]:
-			page = p.ChildPage0
-		case *Leaf[K, V]:
-			return p
-		}
-	}
-	return nil
-}
-
-func maxLeaf[K cmp.Ordered, V any](page Page) *Leaf[K, V] {
-	for page != nil {
-		switch p := page.(type) {
-		case *Node[K]:
-			page = p.Children[len(p.Children)-1]
-		case *Leaf[K, V]:
-			return p
-		}
-	}
-	return nil
-}
-
 func (t *Tree[K, V]) newNode(l int) *Node[K] {
 	return &Node[K]{Keys: make([]K, l, t.Order), Children: make([]Page, l, t.Order)}
 }
@@ -212,11 +188,16 @@ func (t *Tree[K, V]) init() {
 }
 
 func (t *Tree[K, V]) Begin() *Leaf[K, V] {
-	l := minLeaf[K, V](t.Root)
-	if l == nil {
-		l = &t.endSentinel
+	page := t.Root
+	for page != nil {
+		switch p := page.(type) {
+		case *Node[K]:
+			page = p.ChildPage0
+		case *Leaf[K, V]:
+			return p
+		}
 	}
-	return l
+	return &t.endSentinel
 }
 
 func (t *Tree[K, V]) End() *Leaf[K, V] {
@@ -224,11 +205,16 @@ func (t *Tree[K, V]) End() *Leaf[K, V] {
 }
 
 func (t *Tree[K, V]) Rbegin() *Leaf[K, V] {
-	l := maxLeaf[K, V](t.Root)
-	if l == nil {
-		l = &t.rendSentinel
+	page := t.Root
+	for page != nil {
+		switch p := page.(type) {
+		case *Node[K]:
+			page = p.Children[len(p.Children)-1]
+		case *Leaf[K, V]:
+			return p
+		}
 	}
-	return l
+	return &t.rendSentinel
 }
 
 func (t *Tree[K, V]) Rend() *Leaf[K, V] {
@@ -291,9 +277,6 @@ func (t *Tree[K, V]) Del(key K) {
 			copy(rightLeaf.Values, rightLeaf.Values[k:])
 			rightLeaf.Values = rightLeaf.Values[:len(rightLeaf.Values)-k]
 
-			if index >= 0 {
-				rootNode.Keys[index] = leaf.Keys[0]
-			}
 			rootNode.Keys[index+1] = rightLeaf.Keys[0]
 			return
 		} else {
@@ -343,10 +326,12 @@ func (t *Tree[K, V]) Del(key K) {
 			rightNode := rootNode.Children[index+1].(*Node[K])
 			k := (len(rightNode.Keys) - half + 1) / 2
 			if k > 0 {
+				newKey := rightNode.Keys[k-1]
+
 				node.Keys = node.Keys[:len(node.Keys)+k]
-				node.Keys[len(node.Keys)-k] = minLeaf[K, V](rightNode.ChildPage0).Keys[0]
+				node.Keys[len(node.Keys)-k] = rootNode.Keys[index+1]
 				copy(node.Keys[len(node.Keys)-k+1:], rightNode.Keys[:k-1])
-				copy(rightNode.Keys, rightNode.Keys[k-1:])
+				copy(rightNode.Keys, rightNode.Keys[k:])
 				rightNode.Keys = rightNode.Keys[:len(rightNode.Keys)-k]
 
 				node.Children = node.Children[:len(node.Children)+k]
@@ -356,11 +341,10 @@ func (t *Tree[K, V]) Del(key K) {
 				copy(rightNode.Children, rightNode.Children[k:])
 				rightNode.Children = rightNode.Children[:len(rightNode.Children)-k]
 
-				rootNode.Keys[index+1] = minLeaf[K, V](rightNode.ChildPage0).Keys[0]
+				rootNode.Keys[index+1] = newKey
 				return
 			} else {
-				leaf := minLeaf[K, V](rightNode.ChildPage0)
-				node.Keys = append(node.Keys, leaf.Keys[0])
+				node.Keys = append(node.Keys, rootNode.Keys[index+1])
 				node.Children = append(node.Children, rightNode.ChildPage0)
 
 				node = mergeNodes(node, rightNode)
@@ -378,9 +362,11 @@ func (t *Tree[K, V]) Del(key K) {
 
 			k := (len(leftNode.Keys) - half + 1) / 2
 			if k > 0 {
+				newKey := leftNode.Keys[len(leftNode.Keys)-k]
+
 				node.Keys = node.Keys[:len(node.Keys)+k]
 				copy(node.Keys[k:], node.Keys)
-				node.Keys[k-1] = minLeaf[K, V](node.ChildPage0).Keys[0]
+				node.Keys[k-1] = rootNode.Keys[index]
 				copy(node.Keys, leftNode.Keys[len(leftNode.Keys)-k+1:])
 				leftNode.Keys = leftNode.Keys[:len(leftNode.Keys)-k]
 
@@ -391,11 +377,10 @@ func (t *Tree[K, V]) Del(key K) {
 				copy(node.Children, leftNode.Children[len(leftNode.Children)-k+1:])
 				leftNode.Children = leftNode.Children[:len(leftNode.Children)-k]
 
-				rootNode.Keys[index] = minLeaf[K, V](node.ChildPage0).Keys[0]
+				rootNode.Keys[index] = newKey
 				return
 			} else {
-				leaf := minLeaf[K, V](node.ChildPage0)
-				leftNode.Keys = append(leftNode.Keys, leaf.Keys[0])
+				leftNode.Keys = append(leftNode.Keys, rootNode.Keys[index])
 				leftNode.Children = append(leftNode.Children, node.ChildPage0)
 
 				leftNode = mergeNodes(leftNode, node)
