@@ -100,7 +100,7 @@ func (t *Tree[K, V]) init() {
 }
 
 func (t *Tree[K, V]) newPage(l int) *Page[K, V] {
-	return &Page[K, V]{Items: make([]Item[K, V], l, t.Order*2)}
+	return &Page[K, V]{Items: make([]Item[K, V], l, t.Order-1)}
 }
 
 func (t *Tree[K, V]) Clear() {
