@@ -278,7 +278,7 @@ func (t *Tree[K, V]) Del(key K) {
 	rootNode := t.SearchPath[len(t.SearchPath)-1].Node
 	index = t.SearchPath[len(t.SearchPath)-1].Index
 	if index < len(rootNode.Keys)-1 {
-		rightLeaf := rootNode.Children[index+1].(*Leaf[K, V])
+		rightLeaf := leaf.Next
 		k := (len(rightLeaf.Keys) - half + 1) / 2
 		if k > 0 {
 			leaf.Keys = leaf.Keys[:len(leaf.Keys)+k]
@@ -291,6 +291,9 @@ func (t *Tree[K, V]) Del(key K) {
 			copy(rightLeaf.Values, rightLeaf.Values[k:])
 			rightLeaf.Values = rightLeaf.Values[:len(rightLeaf.Values)-k]
 
+			if index >= 0 {
+				rootNode.Keys[index] = leaf.Keys[0]
+			}
 			rootNode.Keys[index+1] = rightLeaf.Keys[0]
 			return
 		} else {
@@ -302,13 +305,7 @@ func (t *Tree[K, V]) Del(key K) {
 			/* dispose(rightLeaf) */
 		}
 	} else {
-		var leftLeaf *Leaf[K, V]
-		if index == 0 {
-			leftLeaf = rootNode.ChildPage0.(*Leaf[K, V])
-		} else {
-			leftLeaf = rootNode.Children[index-1].(*Leaf[K, V])
-		}
-
+		leftLeaf := leaf.Prev
 		k := (len(leftLeaf.Keys) - half + 1) / 2
 		if k > 0 {
 			leaf.Keys = leaf.Keys[:len(leaf.Keys)+k]
@@ -342,15 +339,14 @@ func (t *Tree[K, V]) Del(key K) {
 
 		rootNode = t.SearchPath[p].Node
 		index := t.SearchPath[p].Index
-
 		if index < len(rootNode.Keys)-1 {
 			rightNode := rootNode.Children[index+1].(*Node[K])
 			k := (len(rightNode.Keys) - half + 1) / 2
 			if k > 0 {
 				node.Keys = node.Keys[:len(node.Keys)+k]
-				node.Keys[len(node.Keys)-k] = minLeaf[K, V](rightNode).Keys[0]
+				node.Keys[len(node.Keys)-k] = minLeaf[K, V](rightNode.ChildPage0).Keys[0]
 				copy(node.Keys[len(node.Keys)-k+1:], rightNode.Keys[:k-1])
-				copy(rightNode.Keys, rightNode.Keys[k:])
+				copy(rightNode.Keys, rightNode.Keys[k-1:])
 				rightNode.Keys = rightNode.Keys[:len(rightNode.Keys)-k]
 
 				node.Children = node.Children[:len(node.Children)+k]
@@ -384,15 +380,15 @@ func (t *Tree[K, V]) Del(key K) {
 			if k > 0 {
 				node.Keys = node.Keys[:len(node.Keys)+k]
 				copy(node.Keys[k:], node.Keys)
-				node.Keys[0] = minLeaf[K, V](node).Keys[0]
-				copy(node.Keys[1:], leftNode.Keys[len(leftNode.Keys)-k+1:])
+				node.Keys[k-1] = minLeaf[K, V](node.ChildPage0).Keys[0]
+				copy(node.Keys, leftNode.Keys[len(leftNode.Keys)-k+1:])
 				leftNode.Keys = leftNode.Keys[:len(leftNode.Keys)-k]
 
 				node.Children = node.Children[:len(node.Children)+k]
 				copy(node.Children[k:], node.Children)
-				node.Children[0] = node.ChildPage0
+				node.Children[k-1] = node.ChildPage0
 				node.ChildPage0 = leftNode.Children[len(leftNode.Children)-k]
-				copy(node.Children[1:], leftNode.Children[len(leftNode.Children)-k+1:])
+				copy(node.Children, leftNode.Children[len(leftNode.Children)-k+1:])
 				leftNode.Children = leftNode.Children[:len(leftNode.Children)-k]
 
 				rootNode.Keys[index] = minLeaf[K, V](node.ChildPage0).Keys[0]
