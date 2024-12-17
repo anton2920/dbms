@@ -1,50 +1,60 @@
 package btree
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 
-	"github.com/anton2920/gofa/container"
 	"github.com/anton2920/gofa/util"
 )
 
-type Item struct {
-	Key       container.Key
-	Value     interface{}
-	ChildPage *Page
+type Item[K cmp.Ordered, V any] struct {
+	Key       K
+	Value     V
+	ChildPage *Page[K, V]
 }
 
-type Page struct {
-	Items      []Item
-	ChildPage0 *Page
+type Page[K cmp.Ordered, V any] struct {
+	Items      []Item[K, V]
+	ChildPage0 *Page[K, V]
 }
 
-type PathItem struct {
-	Page      *Page
-	ChildPage *Page
+type PathItem[K cmp.Ordered, V any] struct {
+	Page      *Page[K, V]
+	ChildPage *Page[K, V]
 	Index     int
 }
 
-type Tree struct {
-	Root *Page
+type Tree[K cmp.Ordered, V any] struct {
+	Root *Page[K, V]
 
 	Order int
 
-	SearchPath []PathItem
+	SearchPath []PathItem[K, V]
 }
 
 const DefaultOrder = 45
 
 /* findOnPage returns index of element whose key is <= 'key'. Returns true, if ==. */
-func findOnPage(page *Page, key container.Key) (int, bool) {
-	cmp := key.Compare(page.Items[0].Key)
-	if cmp <= 0 {
-		return -1, cmp == 0
+func findOnPage[K cmp.Ordered, V any](page *Page[K, V], key K) (int, bool) {
+	if key >= page.Items[len(page.Items)-1].Key {
+		eq := key == page.Items[len(page.Items)-1].Key
+		return len(page.Items) - 1 - util.Bool2Int(eq), eq
 	}
+	for i := 0; i < len(page.Items); i++ {
+		if key <= page.Items[i].Key {
+			return i - 1, key == page.Items[i].Key
+		}
+	}
+	return len(page.Items) - 1, false
+}
 
-	cmp = key.Compare(page.Items[len(page.Items)-1].Key)
-	if cmp >= 0 {
-		eq := cmp == 0
+/*
+func findOnPage[K cmp.Ordered, V any](page *Page[K, V], key K) (int, bool) {
+	if key <= page.Items[0].Key {
+		return -1, key == page.Items[0].Key
+	} else if key >= page.Items[len(page.Items)-1].Key {
+		eq := key == page.Items[len(page.Items)-1].Key
 		return len(page.Items) - 1 - util.Bool2Int(eq), eq
 	}
 
@@ -53,11 +63,10 @@ func findOnPage(page *Page, key container.Key) (int, bool) {
 	for {
 		k := (l + r) / 2
 
-		cmp := key.Compare(page.Items[k].Key)
-		if cmp >= 0 {
+		if key >= page.Items[k].Key {
 			l = k + 1
 		}
-		if cmp <= 0 {
+		if key <= page.Items[k].Key {
 			r = k - 1
 		}
 		if l > r {
@@ -67,59 +76,39 @@ func findOnPage(page *Page, key container.Key) (int, bool) {
 
 	return r, l-r > 1
 }
-
-/*
-func findOnPage(page *Page, key container.Key) (int, bool) {
-	if !key.Less(page.Items[len(page.Items)-1].Key) {
-		eq := !page.Items[len(page.Items)-1].Key.Less(key)
-		return len(page.Items) - 1 - util.Bool2Int(eq), eq
-	}
-	for i := 0; i < len(page.Items); i++ {
-		less := key.Less(page.Items[i].Key)
-		rless := page.Items[i].Key.Less(key)
-		if (less) || ((!less) && (!rless)) {
-			return i - 1, (!less) && (!rless)
-		}
-	}
-	return len(page.Items) - 1, false
-}
 */
 
-func removeItemAtIndex(vs []Item, i int) []Item {
-	if (len(vs) == 0) || (i < 0) || (i >= len(vs)) {
-		return vs
-	}
-	if i < len(vs)-1 {
-		copy(vs[i:], vs[i+1:])
-	}
+func removeItemAtIndex[T any](vs []T, i int) []T {
+	copy(vs[i:], vs[i+1:])
 	return vs[:len(vs)-1]
 }
 
-func mergePageItems(self []Item, other []Item) []Item {
+func mergeItems[T any](self []T, other []T) []T {
 	l := len(self)
+
 	self = self[:len(self)+len(other)]
 	copy(self[l:], other)
 
 	return self
 }
 
-func (t *Tree) init() {
+func (t *Tree[K, V]) init() {
 	if t.Order == 0 {
 		t.Order = DefaultOrder
 	}
 	t.SearchPath = t.SearchPath[:0]
 }
 
-func (t *Tree) newPage(l int) *Page {
-	return &Page{Items: make([]Item, l, t.Order*2)}
+func (t *Tree[K, V]) newPage(l int) *Page[K, V] {
+	return &Page[K, V]{Items: make([]Item[K, V], l, t.Order*2)}
 }
 
-func (t *Tree) Clear() {
+func (t *Tree[K, V]) Clear() {
 	t.Root = nil
 }
 
-func (t *Tree) Del(key container.Key) {
-	var childPage *Page
+func (t *Tree[K, V]) Del(key K) {
+	var childPage *Page[K, V]
 	var index int
 	var ok bool
 
@@ -142,7 +131,7 @@ func (t *Tree) Del(key container.Key) {
 			break
 		}
 
-		t.SearchPath = append(t.SearchPath, PathItem{Page: page, ChildPage: childPage, Index: index})
+		t.SearchPath = append(t.SearchPath, PathItem[K, V]{Page: page, ChildPage: childPage, Index: index})
 		page = childPage
 	}
 
@@ -151,13 +140,13 @@ func (t *Tree) Del(key container.Key) {
 		/* 'page' is a terminal page. */
 		page.Items = removeItemAtIndex(page.Items, index+1)
 	} else {
-		t.SearchPath = append(t.SearchPath, PathItem{Page: page, ChildPage: childPage, Index: index})
+		t.SearchPath = append(t.SearchPath, PathItem[K, V]{Page: page, ChildPage: childPage, Index: index})
 		rootPage := page
 		page = childPage
 		for {
 			childPage := page.Items[len(page.Items)-1].ChildPage
 			if childPage != nil {
-				t.SearchPath = append(t.SearchPath, PathItem{Page: page, ChildPage: childPage, Index: len(page.Items) - 1})
+				t.SearchPath = append(t.SearchPath, PathItem[K, V]{Page: page, ChildPage: childPage, Index: len(page.Items) - 1})
 				page = childPage
 			} else {
 				page.Items[len(page.Items)-1].ChildPage = rootPage.Items[index+1].ChildPage
@@ -200,12 +189,12 @@ func (t *Tree) Del(key container.Key) {
 						page.Items[half-1] = rootPage.Items[index+1]
 						page.Items[half-1].ChildPage = rightPage.ChildPage0
 
-						page.Items = mergePageItems(page.Items, rightPage.Items)
+						page.Items = mergeItems(page.Items, rightPage.Items)
 						rootPage.Items = removeItemAtIndex(rootPage.Items, index+1)
 						/* dispose(rightPage) */
 					}
 				} else {
-					var leftPage *Page
+					var leftPage *Page[K, V]
 					if index == 0 {
 						leftPage = rootPage.ChildPage0
 					} else {
@@ -232,7 +221,7 @@ func (t *Tree) Del(key container.Key) {
 						leftPage.Items[len(leftPage.Items)-1] = rootPage.Items[index]
 						leftPage.Items[len(leftPage.Items)-1].ChildPage = page.ChildPage0
 
-						leftPage.Items = mergePageItems(leftPage.Items, page.Items)
+						leftPage.Items = mergeItems(leftPage.Items, page.Items)
 						rootPage.Items = removeItemAtIndex(rootPage.Items, index)
 						/* dispose(page) */
 					}
@@ -247,8 +236,8 @@ func (t *Tree) Del(key container.Key) {
 	}
 }
 
-func (t *Tree) Get(key container.Key) interface{} {
-	var value interface{}
+func (t *Tree[K, V]) Get(key K) V {
+	var value V
 
 	t.init()
 
@@ -269,7 +258,7 @@ func (t *Tree) Get(key container.Key) interface{} {
 	return value
 }
 
-func (t *Tree) Has(key container.Key) bool {
+func (t *Tree[K, V]) Has(key K) bool {
 	t.init()
 
 	page := t.Root
@@ -289,7 +278,7 @@ func (t *Tree) Has(key container.Key) bool {
 	return false
 }
 
-func (t *Tree) Set(key container.Key, value interface{}) {
+func (t *Tree[K, V]) Set(key K, value V) {
 	t.init()
 
 	page := t.Root
@@ -300,16 +289,17 @@ func (t *Tree) Set(key container.Key, value interface{}) {
 			return
 		}
 
-		var childPage *Page
+		var childPage *Page[K, V]
 		if index == -1 {
 			childPage = page.ChildPage0
 		} else {
 			childPage = page.Items[index].ChildPage
 		}
-		t.SearchPath = append(t.SearchPath, PathItem{Page: page, Index: index})
+
+		t.SearchPath = append(t.SearchPath, PathItem[K, V]{Page: page, Index: index})
 		page = childPage
 	}
-	newItem := Item{Key: key, Value: value}
+	newItem := Item[K, V]{Key: key, Value: value}
 
 	item := newItem
 	for p := len(t.SearchPath) - 1; p >= 0; p-- {
@@ -357,27 +347,27 @@ func (t *Tree) Set(key container.Key, value interface{}) {
 	t.Root.Items[0] = item
 }
 
-func (t *Tree) stringImpl(sb *strings.Builder, page *Page, level int) {
-	if page != nil {
-		for i := 0; i < level; i++ {
-			sb.WriteRune('\t')
-		}
-		for i := 0; i < len(page.Items); i++ {
-			fmt.Fprintf(sb, "%4v", page.Items[i].Key)
-		}
-		sb.WriteRune('\n')
+func (t *Tree[K, V]) stringImpl(sb *strings.Builder, page *Page[K, V], level int) {
+	if page == nil {
+		return
+	}
 
-		t.stringImpl(sb, page.ChildPage0, level+1)
-		for i := 0; i < len(page.Items); i++ {
-			t.stringImpl(sb, page.Items[i].ChildPage, level+1)
-		}
+	for i := 0; i < level; i++ {
+		sb.WriteRune('\t')
+	}
+	for i := 0; i < len(page.Items); i++ {
+		fmt.Fprintf(sb, "%4v", page.Items[i].Key)
+	}
+	sb.WriteRune('\n')
+
+	t.stringImpl(sb, page.ChildPage0, level+1)
+	for i := 0; i < len(page.Items); i++ {
+		t.stringImpl(sb, page.Items[i].ChildPage, level+1)
 	}
 }
 
-func (t Tree) String() string {
+func (t Tree[K, V]) String() string {
 	var sb strings.Builder
-
 	t.stringImpl(&sb, t.Root, 0)
-
 	return sb.String()
 }

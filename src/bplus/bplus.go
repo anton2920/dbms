@@ -1,79 +1,77 @@
 package bplus
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 
-	"github.com/anton2920/gofa/container"
 	"github.com/anton2920/gofa/util"
 )
 
 type Page interface{}
 
-type Node struct {
-	Keys       []container.Key
+type Node[K cmp.Ordered] struct {
+	Keys       []K
 	Children   []Page
 	ChildPage0 Page
 }
 
-type Leaf struct {
-	Keys   []container.Key
-	Values []interface{}
+type Leaf[K cmp.Ordered, V any] struct {
+	Keys   []K
+	Values []V
 
-	Prev *Leaf
-	Next *Leaf
+	Prev *Leaf[K, V]
+	Next *Leaf[K, V]
 }
 
-type PathItem struct {
-	Node  *Node
+type PathItem[K cmp.Ordered] struct {
+	Node  *Node[K]
 	Index int
 }
 
-type Tree struct {
+type Tree[K cmp.Ordered, V any] struct {
 	Root Page
 
 	Order int
 
-	SearchPath []PathItem
+	SearchPath []PathItem[K]
 
-	endSentinel  Leaf
-	rendSentinel Leaf
+	/* Sentinel elements for doubly-linked list of leaves, used for iterators. */
+	endSentinel  Leaf[K, V]
+	rendSentinel Leaf[K, V]
 }
 
 const DefaultOrder = 46
 
-/*
-func findOnLeaf(l *Leaf, key container.Key) (int, bool) {
+func findOnLeaf[K cmp.Ordered, V any](l *Leaf[K, V], key K) (int, bool) {
 	if len(l.Keys) == 0 {
 		return -1, false
-	} else if !key.Less(l.Keys[len(l.Keys)-1]) {
-		eq := !l.Keys[len(l.Keys)-1].Less(key)
+	} else if key >= l.Keys[len(l.Keys)-1] {
+		eq := key == l.Keys[len(l.Keys)-1]
 		return len(l.Keys) - 1 - util.Bool2Int(eq), eq
 	}
 	for i := 0; i < len(l.Keys); i++ {
-		less := key.Less(l.Keys[i])
-		rless := l.Keys[i].Less(key)
-		if (less) || ((!less) && (!rless)) {
-			return i - 1, (!less) && (!rless)
+		if key <= l.Keys[i] {
+			return i - 1, key == l.Keys[i]
 		}
 	}
 	return len(l.Keys) - 1, false
 }
 
-func findOnNode(n *Node, key container.Key) int {
-	if !key.Less(n.Keys[len(n.Keys)-1]) {
+func findOnNode[K cmp.Ordered](n *Node[K], key K) int {
+	if key >= n.Keys[len(n.Keys)-1] {
 		return len(n.Keys) - 1
 	}
 	for i := 0; i < len(n.Keys); i++ {
-		if key.Less(n.Keys[i]) {
+		if key < n.Keys[i] {
 			return i - 1
 		}
 	}
 	return len(n.Keys) - 1
 }
-*/
 
-func findOnLeaf(leaf *Leaf, key container.Key) (int, bool) {
+/*
+func findOnLeaf(leaf *Leaf, key K) (int, bool) {
 	if len(leaf.Keys) == 0 {
 		return -1, false
 	}
@@ -109,7 +107,7 @@ func findOnLeaf(leaf *Leaf, key container.Key) (int, bool) {
 	return r, l-r > 1
 }
 
-func findOnNode(node *Node, key container.Key) int {
+func findOnNode(node *Node, key K) int {
 	if key.Compare(node.Keys[0]) < 0 {
 		return -1
 	}
@@ -136,29 +134,16 @@ func findOnNode(node *Node, key container.Key) int {
 
 	return r
 }
+*/
 
-func insertChild(children []Page, child Page, index int) []Page {
-	children = children[:len(children)+1]
-	copy(children[index+1:], children[index:])
-	children[index] = child
-	return children
+func insertAtIndex[T any](vs []T, v T, i int) []T {
+	vs = vs[:len(vs)+1]
+	copy(vs[i+1:], vs[i:])
+	vs[i] = v
+	return vs
 }
 
-func insertKey(keys []container.Key, key container.Key, index int) []container.Key {
-	keys = keys[:len(keys)+1]
-	copy(keys[index+1:], keys[index:])
-	keys[index] = key
-	return keys
-}
-
-func insertValue(values []interface{}, value interface{}, index int) []interface{} {
-	values = values[:len(values)+1]
-	copy(values[index+1:], values[index:])
-	values[index] = value
-	return values
-}
-
-func mergeLeaves(self *Leaf, other *Leaf) *Leaf {
+func mergeLeaves[K cmp.Ordered, V any](self *Leaf[K, V], other *Leaf[K, V]) *Leaf[K, V] {
 	l := len(self.Keys)
 
 	self.Keys = self.Keys[:l+len(other.Keys)]
@@ -170,7 +155,7 @@ func mergeLeaves(self *Leaf, other *Leaf) *Leaf {
 	return self
 }
 
-func mergeNodes(self *Node, other *Node) *Node {
+func mergeNodes[K cmp.Ordered](self *Node[K], other *Node[K]) *Node[K] {
 	l := len(self.Keys)
 
 	self.Keys = self.Keys[:l+len(other.Keys)]
@@ -182,123 +167,98 @@ func mergeNodes(self *Node, other *Node) *Node {
 	return self
 }
 
-func removeChild(children []Page, index int) []Page {
-	if (len(children) == 0) || (index < 0) || (index >= len(children)) {
-		return children
-	}
-	if index < len(children)-1 {
-		copy(children[index:], children[index+1:])
-	}
-	return children[:len(children)-1]
+func removeAtIndex[T any](vs []T, i int) []T {
+	copy(vs[i:], vs[i+1:])
+	return vs[:len(vs)-1]
 }
 
-func removeKey(keys []container.Key, index int) []container.Key {
-	if (len(keys) == 0) || (index < 0) || (index >= len(keys)) {
-		return keys
+func minLeaf[K cmp.Ordered, V any](page Page) *Leaf[K, V] {
+	for page != nil {
+		switch p := page.(type) {
+		case *Node[K]:
+			page = p.ChildPage0
+		case *Leaf[K, V]:
+			return p
+		}
 	}
-	if index < len(keys)-1 {
-		copy(keys[index:], keys[index+1:])
-	}
-	return keys[:len(keys)-1]
+	return nil
 }
 
-func removeValue(values []interface{}, index int) []interface{} {
-	if (len(values) == 0) || (index < 0) || (index >= len(values)) {
-		return values
+func maxLeaf[K cmp.Ordered, V any](page Page) *Leaf[K, V] {
+	for page != nil {
+		switch p := page.(type) {
+		case *Node[K]:
+			page = p.Children[len(p.Children)-1]
+		case *Leaf[K, V]:
+			return p
+		}
 	}
-	if index < len(values)-1 {
-		copy(values[index:], values[index+1:])
-	}
-	return values[:len(values)-1]
+	return nil
 }
 
-func (t *Tree) newNode(l int) *Node {
-	return &Node{Keys: make([]container.Key, l, t.Order), Children: make([]Page, l, t.Order)}
+func (t *Tree[K, V]) newNode(l int) *Node[K] {
+	return &Node[K]{Keys: make([]K, l, t.Order), Children: make([]Page, l, t.Order)}
 }
 
-func (t *Tree) newLeaf(l int) *Leaf {
-	return &Leaf{Keys: make([]container.Key, l, t.Order), Values: make([]interface{}, l, t.Order)}
+func (t *Tree[K, V]) newLeaf(l int) *Leaf[K, V] {
+	return &Leaf[K, V]{Keys: make([]K, l, t.Order), Values: make([]V, l, t.Order)}
 }
 
-func (t *Tree) init() {
+func (t *Tree[K, V]) init() {
 	if t.Order == 0 {
 		t.Order = DefaultOrder
 	}
 	t.SearchPath = t.SearchPath[:0]
 }
 
-func minLeaf(page Page) *Leaf {
-	for page != nil {
-		switch p := page.(type) {
-		case *Node:
-			page = p.ChildPage0
-		case *Leaf:
-			return p
-		}
-	}
-	return nil
-}
-
-func maxLeaf(page Page) *Leaf {
-	for page != nil {
-		switch p := page.(type) {
-		case *Node:
-			page = p.Children[len(p.Children)-1]
-		case *Leaf:
-			return p
-		}
-	}
-	return nil
-}
-
-func (t *Tree) Begin() *Leaf {
-	l := minLeaf(t.Root)
+func (t *Tree[K, V]) Begin() *Leaf[K, V] {
+	l := minLeaf[K, V](t.Root)
 	if l == nil {
 		l = &t.endSentinel
 	}
 	return l
 }
 
-func (t *Tree) End() *Leaf {
+func (t *Tree[K, V]) End() *Leaf[K, V] {
 	return &t.endSentinel
 }
 
-func (t *Tree) Rbegin() *Leaf {
-	l := maxLeaf(t.Root)
+func (t *Tree[K, V]) Rbegin() *Leaf[K, V] {
+	l := maxLeaf[K, V](t.Root)
 	if l == nil {
 		l = &t.rendSentinel
 	}
 	return l
 }
 
-func (t *Tree) Rend() *Leaf {
+func (t *Tree[K, V]) Rend() *Leaf[K, V] {
 	return &t.rendSentinel
 }
 
-func (t *Tree) Clear() {
+func (t *Tree[K, V]) Clear() {
 	t.Root = nil
 }
 
-func (t *Tree) Del(key container.Key) {
+func (t *Tree[K, V]) Del(key K) {
 	t.init()
 
-	var leaf *Leaf
+	var leaf *Leaf[K, V]
 	var index int
 	var ok bool
 
 	page := t.Root
 	for page != nil {
 		switch p := page.(type) {
-		case *Node:
-			index = findOnNode(p, key)
+		case *Node[K]:
+			index = findOnNode[K](p, key)
 			if index == -1 {
 				page = p.ChildPage0
 			} else {
 				page = p.Children[index]
 			}
-			t.SearchPath = append(t.SearchPath, PathItem{Node: p, Index: index})
-		case *Leaf:
-			index, ok = findOnLeaf(p, key)
+			t.SearchPath = append(t.SearchPath, PathItem[K]{Node: p, Index: index})
+		case *Leaf[K, V]:
+			index, ok = findOnLeaf[K, V](p, key)
 			if !ok {
 				return
 			}
@@ -309,8 +269,8 @@ func (t *Tree) Del(key container.Key) {
 
 	/* Remove key. */
 	half := t.Order/2 - (1 - t.Order%2)
-	leaf.Keys = removeKey(leaf.Keys, index+1)
-	leaf.Values = removeValue(leaf.Values, index+1)
+	leaf.Keys = removeAtIndex(leaf.Keys, index+1)
+	leaf.Values = removeAtIndex(leaf.Values, index+1)
 	if (len(leaf.Keys) >= half) || (leaf == t.Root) {
 		return
 	}
@@ -318,7 +278,7 @@ func (t *Tree) Del(key container.Key) {
 	rootNode := t.SearchPath[len(t.SearchPath)-1].Node
 	index = t.SearchPath[len(t.SearchPath)-1].Index
 	if index < len(rootNode.Keys)-1 {
-		rightLeaf := rootNode.Children[index+1].(*Leaf)
+		rightLeaf := rootNode.Children[index+1].(*Leaf[K, V])
 		k := (len(rightLeaf.Keys) - half + 1) / 2
 		if k > 0 {
 			leaf.Keys = leaf.Keys[:len(leaf.Keys)+k]
@@ -335,18 +295,18 @@ func (t *Tree) Del(key container.Key) {
 			return
 		} else {
 			leaf = mergeLeaves(leaf, rightLeaf)
-			rootNode.Keys = removeKey(rootNode.Keys, index+1)
-			rootNode.Children = removeChild(rootNode.Children, index+1)
+			rootNode.Keys = removeAtIndex(rootNode.Keys, index+1)
+			rootNode.Children = removeAtIndex(rootNode.Children, index+1)
 			leaf.Next = rightLeaf.Next
 			leaf.Next.Prev = leaf
 			/* dispose(rightLeaf) */
 		}
 	} else {
-		var leftLeaf *Leaf
+		var leftLeaf *Leaf[K, V]
 		if index == 0 {
-			leftLeaf = rootNode.ChildPage0.(*Leaf)
+			leftLeaf = rootNode.ChildPage0.(*Leaf[K, V])
 		} else {
-			leftLeaf = rootNode.Children[index-1].(*Leaf)
+			leftLeaf = rootNode.Children[index-1].(*Leaf[K, V])
 		}
 
 		k := (len(leftLeaf.Keys) - half + 1) / 2
@@ -365,8 +325,8 @@ func (t *Tree) Del(key container.Key) {
 			return
 		} else {
 			leftLeaf = mergeLeaves(leftLeaf, leaf)
-			rootNode.Keys = removeKey(rootNode.Keys, index)
-			rootNode.Children = removeChild(rootNode.Children, index)
+			rootNode.Keys = removeAtIndex(rootNode.Keys, index)
+			rootNode.Children = removeAtIndex(rootNode.Children, index)
 			leftLeaf.Next = leaf.Next
 			leftLeaf.Next.Prev = leftLeaf
 			/* dispose(leaf) */
@@ -384,11 +344,11 @@ func (t *Tree) Del(key container.Key) {
 		index := t.SearchPath[p].Index
 
 		if index < len(rootNode.Keys)-1 {
-			rightNode := rootNode.Children[index+1].(*Node)
+			rightNode := rootNode.Children[index+1].(*Node[K])
 			k := (len(rightNode.Keys) - half + 1) / 2
 			if k > 0 {
 				node.Keys = node.Keys[:len(node.Keys)+k]
-				node.Keys[len(node.Keys)-k] = minLeaf(rightNode).Keys[0]
+				node.Keys[len(node.Keys)-k] = minLeaf[K, V](rightNode).Keys[0]
 				copy(node.Keys[len(node.Keys)-k+1:], rightNode.Keys[:k-1])
 				copy(rightNode.Keys, rightNode.Keys[k:])
 				rightNode.Keys = rightNode.Keys[:len(rightNode.Keys)-k]
@@ -400,31 +360,31 @@ func (t *Tree) Del(key container.Key) {
 				copy(rightNode.Children, rightNode.Children[k:])
 				rightNode.Children = rightNode.Children[:len(rightNode.Children)-k]
 
-				rootNode.Keys[index+1] = minLeaf(rightNode.ChildPage0).Keys[0]
+				rootNode.Keys[index+1] = minLeaf[K, V](rightNode.ChildPage0).Keys[0]
 				return
 			} else {
-				leaf := minLeaf(rightNode.ChildPage0)
+				leaf := minLeaf[K, V](rightNode.ChildPage0)
 				node.Keys = append(node.Keys, leaf.Keys[0])
 				node.Children = append(node.Children, rightNode.ChildPage0)
 
 				node = mergeNodes(node, rightNode)
-				rootNode.Keys = removeKey(rootNode.Keys, index+1)
-				rootNode.Children = removeChild(rootNode.Children, index+1)
+				rootNode.Keys = removeAtIndex(rootNode.Keys, index+1)
+				rootNode.Children = removeAtIndex(rootNode.Children, index+1)
 				/* dispose(rightNode) */
 			}
 		} else {
-			var leftNode *Node
+			var leftNode *Node[K]
 			if index == 0 {
-				leftNode = rootNode.ChildPage0.(*Node)
+				leftNode = rootNode.ChildPage0.(*Node[K])
 			} else {
-				leftNode = rootNode.Children[index-1].(*Node)
+				leftNode = rootNode.Children[index-1].(*Node[K])
 			}
 
 			k := (len(leftNode.Keys) - half + 1) / 2
 			if k > 0 {
 				node.Keys = node.Keys[:len(node.Keys)+k]
 				copy(node.Keys[k:], node.Keys)
-				node.Keys[0] = minLeaf(node).Keys[0]
+				node.Keys[0] = minLeaf[K, V](node).Keys[0]
 				copy(node.Keys[1:], leftNode.Keys[len(leftNode.Keys)-k+1:])
 				leftNode.Keys = leftNode.Keys[:len(leftNode.Keys)-k]
 
@@ -435,44 +395,44 @@ func (t *Tree) Del(key container.Key) {
 				copy(node.Children[1:], leftNode.Children[len(leftNode.Children)-k+1:])
 				leftNode.Children = leftNode.Children[:len(leftNode.Children)-k]
 
-				rootNode.Keys[index] = minLeaf(node.ChildPage0).Keys[0]
+				rootNode.Keys[index] = minLeaf[K, V](node.ChildPage0).Keys[0]
 				return
 			} else {
-				leaf := minLeaf(node.ChildPage0)
+				leaf := minLeaf[K, V](node.ChildPage0)
 				leftNode.Keys = append(leftNode.Keys, leaf.Keys[0])
 				leftNode.Children = append(leftNode.Children, node.ChildPage0)
 
 				leftNode = mergeNodes(leftNode, node)
-				rootNode.Keys = removeKey(rootNode.Keys, index)
-				rootNode.Children = removeChild(rootNode.Children, index)
+				rootNode.Keys = removeAtIndex(rootNode.Keys, index)
+				rootNode.Children = removeAtIndex(rootNode.Children, index)
 				/* dispose(node) */
 			}
 		}
 	}
 
-	rootNode = t.Root.(*Node)
+	rootNode = t.Root.(*Node[K])
 	if len(rootNode.Keys) == 0 {
 		t.Root = rootNode.ChildPage0
 	}
 }
 
-func (t *Tree) Get(key container.Key) interface{} {
-	var v interface{}
+func (t *Tree[K, V]) Get(key K) V {
+	var v V
 
 	t.init()
 
 	page := t.Root
 	for page != nil {
 		switch p := page.(type) {
-		case *Node:
-			index := findOnNode(p, key)
+		case *Node[K]:
+			index := findOnNode[K](p, key)
 			if index == -1 {
 				page = p.ChildPage0
 			} else {
 				page = p.Children[index]
 			}
-		case *Leaf:
-			index, ok := findOnLeaf(p, key)
+		case *Leaf[K, V]:
+			index, ok := findOnLeaf[K, V](p, key)
 			if ok {
 				v = p.Values[index+1]
 			}
@@ -483,21 +443,21 @@ func (t *Tree) Get(key container.Key) interface{} {
 	return v
 }
 
-func (t *Tree) Has(key container.Key) bool {
+func (t *Tree[K, V]) Has(key K) bool {
 	t.init()
 
 	page := t.Root
 	for page != nil {
 		switch p := page.(type) {
-		case *Node:
-			index := findOnNode(p, key)
+		case *Node[K]:
+			index := findOnNode[K](p, key)
 			if index == -1 {
 				page = p.ChildPage0
 			} else {
 				page = p.Children[index]
 			}
-		case *Leaf:
-			_, ok := findOnLeaf(p, key)
+		case *Leaf[K, V]:
+			_, ok := findOnLeaf[K, V](p, key)
 			return ok
 		}
 	}
@@ -505,7 +465,7 @@ func (t *Tree) Has(key container.Key) bool {
 	return false
 }
 
-func (t *Tree) Set(key container.Key, value interface{}) {
+func (t *Tree[K, V]) Set(key K, value V) {
 	t.init()
 	if t.Root == nil {
 		leaf := t.newLeaf(1)
@@ -517,23 +477,23 @@ func (t *Tree) Set(key container.Key, value interface{}) {
 		return
 	}
 
-	var leaf *Leaf
+	var leaf *Leaf[K, V]
 	var index int
 	var ok bool
 
 	page := t.Root
 	for page != nil {
 		switch p := page.(type) {
-		case *Node:
-			index = findOnNode(p, key)
+		case *Node[K]:
+			index = findOnNode[K](p, key)
 			if index == -1 {
 				page = p.ChildPage0
 			} else {
 				page = p.Children[index]
 			}
-			t.SearchPath = append(t.SearchPath, PathItem{Node: p, Index: index})
-		case *Leaf:
-			index, ok = findOnLeaf(p, key)
+			t.SearchPath = append(t.SearchPath, PathItem[K]{Node: p, Index: index})
+		case *Leaf[K, V]:
+			index, ok = findOnLeaf[K, V](p, key)
 			if ok {
 				/* Update value for existing key. */
 				p.Values[index+1] = value
@@ -549,8 +509,8 @@ func (t *Tree) Set(key container.Key, value interface{}) {
 	newKey := key
 
 	/* Insert new key. */
-	leaf.Keys = insertKey(leaf.Keys, key, index+1)
-	leaf.Values = insertValue(leaf.Values, value, index+1)
+	leaf.Keys = insertAtIndex(leaf.Keys, key, index+1)
+	leaf.Values = insertAtIndex(leaf.Values, value, index+1)
 	if len(leaf.Keys) < t.Order {
 		return
 	}
@@ -576,8 +536,8 @@ func (t *Tree) Set(key container.Key, value interface{}) {
 		index := t.SearchPath[p].Index
 		node := t.SearchPath[p].Node
 
-		node.Keys = insertKey(node.Keys, newKey, index+1)
-		node.Children = insertChild(node.Children, newPage, index+1)
+		node.Keys = insertAtIndex(node.Keys, newKey, index+1)
+		node.Children = insertAtIndex(node.Children, newPage, index+1)
 		if len(node.Keys) < t.Order {
 			return
 		}
@@ -603,13 +563,13 @@ func (t *Tree) Set(key container.Key, value interface{}) {
 	t.Root = node
 }
 
-func (t *Tree) stringImpl(sb *strings.Builder, page Page, level int) {
+func (t *Tree[K, V]) stringImpl(sb *strings.Builder, page Page, level int) {
 	if page != nil {
 		for i := 0; i < level; i++ {
 			sb.WriteRune('\t')
 		}
 		switch page := page.(type) {
-		case *Node:
+		case *Node[K]:
 			for i := 0; i < len(page.Keys); i++ {
 				fmt.Fprintf(sb, "%4v", page.Keys[i])
 			}
@@ -619,16 +579,16 @@ func (t *Tree) stringImpl(sb *strings.Builder, page Page, level int) {
 			for i := 0; i < len(page.Children); i++ {
 				t.stringImpl(sb, page.Children[i], level+1)
 			}
-		case *Leaf:
+		case *Leaf[K, V]:
 			for i := 0; i < len(page.Keys); i++ {
-				fmt.Fprintf(sb, "%4d", page.Keys[i])
+				fmt.Fprintf(sb, "%4v", page.Keys[i])
 			}
 			sb.WriteRune('\n')
 		}
 	}
 }
 
-func (t Tree) String() string {
+func (t Tree[K, V]) String() string {
 	var sb strings.Builder
 
 	t.stringImpl(&sb, t.Root, 0)

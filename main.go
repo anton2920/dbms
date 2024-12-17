@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"log"
 
@@ -8,31 +9,38 @@ import (
 	"btree"
 	"generator"
 	"rbtree"
-
-	"github.com/anton2920/gofa/container"
 )
+
+type Tree[K cmp.Ordered, V any] interface {
+	Clear()
+	Del(K)
+	Get(K) V
+	Has(K) bool
+	Set(K, V)
+	String() string
+}
 
 const (
 	N     = 10
 	Order = 5
 
-	Min  = container.Int(1)
-	Max  = container.Int(20)
-	Step = container.Int(1)
+	Min  = 1
+	Max  = 20
+	Step = 1
 )
 
 var (
 	/* 20; 40 10 30 15; 35 7 26 18 22; 5; 42 13 46 27 8 32; 38 24 45 25; */
-	InsertKeys = [...]container.Int{20, 40, 10, 30, 15, 35, 7, 26, 18, 22, 5, 42, 13, 46, 27, 8, 32, 38, 24, 45, 25}
+	InsertKeys = [...]int{20, 40, 10, 30, 15, 35, 7, 26, 18, 22, 5, 42, 13, 46, 27, 8, 32, 38, 24, 45, 25}
 
 	/* 25 45 24; 38 32; 8 27 46 13 42; 5 22 18 26; 7 35 15; */
-	DeleleKeys = [...]container.Int{25, 45, 24, 38, 32, 8, 27, 46, 13, 42, 5, 22, 18, 26, 7, 35, 15}
+	DeleleKeys = [...]int{25, 45, 24, 38, 32, 8, 27, 46, 13, 42, 5, 22, 18, 26, 7, 35, 15}
 
 	G = new(generator.RandomGenerator)
 )
 
-func BplusPrintSeq(t container.Tree) {
-	bt, ok := t.(*bplus.Tree)
+func BplusPrintSeq(t Tree[int, int]) {
+	bt, ok := t.(*bplus.Tree[int, int])
 	if !ok {
 		return
 	}
@@ -51,7 +59,7 @@ func BplusPrintSeq(t container.Tree) {
 	println()
 }
 
-func Demo(t container.Tree) {
+func Demo(t Tree[int, int]) {
 	println("INSERT 1!!!")
 	for _, key := range InsertKeys {
 		//fmt.Println("I:", key)
@@ -91,10 +99,10 @@ func Demo(t container.Tree) {
 
 	println("INSERT 3!!!")
 	t.Clear()
-	m := make(map[container.Int]interface{})
+	m := make(map[int]int)
 	G.Reset()
 	for i := 0; i < N; i++ {
-		key := container.Int(G.Generate() % 1000)
+		key := G.Generate() % 1000
 		value := G.Generate()
 		t.Set(key, value)
 		m[key] = value
@@ -129,18 +137,18 @@ func Demo(t container.Tree) {
 func main() {
 	{
 		println("RB-tree")
-		t := new(rbtree.Tree)
+		t := new(rbtree.Tree[int, int])
 		Demo(t)
 	}
 	{
 		println("B-tree")
-		t := new(btree.Tree)
+		t := new(btree.Tree[int, int])
 		t.Order = Order
 		Demo(t)
 	}
 	{
 		println("B+tree")
-		t := new(bplus.Tree)
+		t := new(bplus.Tree[int, int])
 		t.Order = Order
 		Demo(t)
 	}

@@ -5,16 +5,16 @@ import (
 
 	"constants"
 	"generator"
-
-	"github.com/anton2920/gofa/container"
 )
 
 func testRBtreeGet(t *testing.T, g generator.Generator) {
-	var rb Tree
+	t.Helper()
 
-	m := make(map[container.Key]interface{})
+	var rb Tree[int, int]
+
+	m := make(map[int]int)
 	for i := 0; i < constants.N; i++ {
-		k := container.Int(g.Generate())
+		k := g.Generate()
 		v := g.Generate()
 
 		m[k] = v
@@ -29,15 +29,16 @@ func testRBtreeGet(t *testing.T, g generator.Generator) {
 }
 
 func testRBtreeDel(t *testing.T, g generator.Generator) {
-	var rb Tree
+	t.Helper()
 
-	m := make(map[container.Key]interface{})
+	var rb Tree[int, int]
+
+	m := make(map[int]struct{})
 	for i := 0; i < constants.N; i++ {
-		k := container.Int(g.Generate())
-		v := g.Generate()
+		k := g.Generate()
 
 		m[k] = struct{}{}
-		rb.Set(k, v)
+		rb.Set(k, 0)
 	}
 
 	for k := range m {
@@ -49,11 +50,13 @@ func testRBtreeDel(t *testing.T, g generator.Generator) {
 }
 
 func testRBtreeHas(t *testing.T, g generator.Generator) {
-	var rb Tree
+	t.Helper()
 
-	m := make(map[container.Key]struct{})
+	var rb Tree[int, int]
+
+	m := make(map[int]struct{})
 	for i := 0; i < constants.N; i++ {
-		k := container.Int(g.Generate())
+		k := g.Generate()
 
 		m[k] = struct{}{}
 		rb.Set(k, 0)
@@ -67,10 +70,12 @@ func testRBtreeHas(t *testing.T, g generator.Generator) {
 }
 
 func testRBtreeSet(t *testing.T, g generator.Generator) {
-	var rb Tree
+	t.Helper()
+
+	var rb Tree[int, int]
 
 	for i := 0; i < constants.N; i++ {
-		k := container.Int(g.Generate())
+		k := g.Generate()
 		v := g.Generate()
 
 		rb.Set(k, v)
@@ -116,39 +121,39 @@ func TestRBtree(t *testing.T) {
 func benchmarkRBtreeGet(b *testing.B, g generator.Generator) {
 	b.Helper()
 
-	var rb Tree
+	var rb Tree[int, int]
 	for i := 0; i < b.N; i++ {
-		rb.Set(container.Int(g.Generate()), 0)
+		rb.Set(g.Generate(), 0)
 	}
 
 	g.Reset()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = rb.Get(container.Int(g.Generate()))
+		_ = rb.Get(g.Generate())
 	}
 }
 
 func benchmarkRBtreeDel(b *testing.B, g generator.Generator) {
 	b.Helper()
 
-	var rb Tree
+	var rb Tree[int, int]
 	for i := 0; i < b.N; i++ {
-		rb.Set(container.Int(g.Generate()), 0)
+		rb.Set(int(g.Generate()), 0)
 	}
 
 	g.Reset()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rb.Del(container.Int(g.Generate()))
+		rb.Del(g.Generate())
 	}
 }
 
 func benchmarkRBtreeSet(b *testing.B, g generator.Generator) {
 	b.Helper()
 
-	var rb Tree
+	var rb Tree[int, int]
 	for i := 0; i < b.N; i++ {
-		rb.Set(container.Int(g.Generate()), 0)
+		rb.Set(g.Generate(), 0)
 	}
 }
 

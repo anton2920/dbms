@@ -12,10 +12,9 @@
 package rbtree
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
-
-	"github.com/anton2920/gofa/container"
 )
 
 type color bool
@@ -24,27 +23,198 @@ const (
 	black, red color = true, false
 )
 
-type Tree struct {
-	Root *Node
-	size int
+type Node[K cmp.Ordered, V any] struct {
+	Key   K
+	Value V
+
+	Left   *Node[K, V]
+	Right  *Node[K, V]
+	Parent *Node[K, V]
+
+	color color
 }
 
-type Node struct {
-	Key    container.Key
-	Value  interface{}
-	color  color
-	Left   *Node
-	Right  *Node
-	Parent *Node
+type Tree[K cmp.Ordered, V any] struct {
+	Root *Node[K, V]
 }
 
-func (tree *Tree) lookup(key container.Key) *Node {
+func nodeColor[K cmp.Ordered, V any](node *Node[K, V]) color {
+	if node == nil {
+		return black
+	}
+	return node.color
+}
+
+func (node *Node[K, V]) maximumNode() *Node[K, V] {
+	if node == nil {
+		return nil
+	}
+	for node.Right != nil {
+		node = node.Right
+	}
+	return node
+}
+
+func (node *Node[K, V]) grandparent() *Node[K, V] {
+	if node != nil && node.Parent != nil {
+		return node.Parent.Parent
+	}
+	return nil
+}
+
+func (node *Node[K, V]) sibling() *Node[K, V] {
+	if node == nil || node.Parent == nil {
+		return nil
+	}
+	if node == node.Parent.Left {
+		return node.Parent.Right
+	}
+	return node.Parent.Left
+}
+
+func (node *Node[K, V]) uncle() *Node[K, V] {
+	if node == nil || node.Parent == nil || node.Parent.Parent == nil {
+		return nil
+	}
+	return node.Parent.sibling()
+}
+
+func (tree *Tree[K, V]) deleteCase1(node *Node[K, V]) {
+	if node.Parent == nil {
+		return
+	}
+	tree.deleteCase2(node)
+}
+
+func (tree *Tree[K, V]) deleteCase2(node *Node[K, V]) {
+	sibling := node.sibling()
+	if nodeColor(sibling) == red {
+		node.Parent.color = red
+		sibling.color = black
+		if node == node.Parent.Left {
+			tree.rotateLeft(node.Parent)
+		} else {
+			tree.rotateRight(node.Parent)
+		}
+	}
+	tree.deleteCase3(node)
+}
+
+func (tree *Tree[K, V]) deleteCase3(node *Node[K, V]) {
+	sibling := node.sibling()
+	if nodeColor(node.Parent) == black &&
+		nodeColor(sibling) == black &&
+		nodeColor(sibling.Left) == black &&
+		nodeColor(sibling.Right) == black {
+		sibling.color = red
+		tree.deleteCase1(node.Parent)
+	} else {
+		tree.deleteCase4(node)
+	}
+}
+
+func (tree *Tree[K, V]) deleteCase4(node *Node[K, V]) {
+	sibling := node.sibling()
+	if nodeColor(node.Parent) == red &&
+		nodeColor(sibling) == black &&
+		nodeColor(sibling.Left) == black &&
+		nodeColor(sibling.Right) == black {
+		sibling.color = red
+		node.Parent.color = black
+	} else {
+		tree.deleteCase5(node)
+	}
+}
+
+func (tree *Tree[K, V]) deleteCase5(node *Node[K, V]) {
+	sibling := node.sibling()
+	if node == node.Parent.Left &&
+		nodeColor(sibling) == black &&
+		nodeColor(sibling.Left) == red &&
+		nodeColor(sibling.Right) == black {
+		sibling.color = red
+		sibling.Left.color = black
+		tree.rotateRight(sibling)
+	} else if node == node.Parent.Right &&
+		nodeColor(sibling) == black &&
+		nodeColor(sibling.Right) == red &&
+		nodeColor(sibling.Left) == black {
+		sibling.color = red
+		sibling.Right.color = black
+		tree.rotateLeft(sibling)
+	}
+	tree.deleteCase6(node)
+}
+
+func (tree *Tree[K, V]) deleteCase6(node *Node[K, V]) {
+	sibling := node.sibling()
+	sibling.color = nodeColor(node.Parent)
+	node.Parent.color = black
+	if node == node.Parent.Left && nodeColor(sibling.Right) == red {
+		sibling.Right.color = black
+		tree.rotateLeft(node.Parent)
+	} else if nodeColor(sibling.Left) == red {
+		sibling.Left.color = black
+		tree.rotateRight(node.Parent)
+	}
+}
+
+func (tree *Tree[K, V]) insertCase1(node *Node[K, V]) {
+	if node.Parent == nil {
+		node.color = black
+	} else {
+		tree.insertCase2(node)
+	}
+}
+
+func (tree *Tree[K, V]) insertCase2(node *Node[K, V]) {
+	if nodeColor(node.Parent) == black {
+		return
+	}
+	tree.insertCase3(node)
+}
+
+func (tree *Tree[K, V]) insertCase3(node *Node[K, V]) {
+	uncle := node.uncle()
+	if nodeColor(uncle) == red {
+		node.Parent.color = black
+		uncle.color = black
+		node.grandparent().color = red
+		tree.insertCase1(node.grandparent())
+	} else {
+		tree.insertCase4(node)
+	}
+}
+
+func (tree *Tree[K, V]) insertCase4(node *Node[K, V]) {
+	grandparent := node.grandparent()
+	if node == node.Parent.Right && node.Parent == grandparent.Left {
+		tree.rotateLeft(node.Parent)
+		node = node.Left
+	} else if node == node.Parent.Left && node.Parent == grandparent.Right {
+		tree.rotateRight(node.Parent)
+		node = node.Right
+	}
+	tree.insertCase5(node)
+}
+
+func (tree *Tree[K, V]) insertCase5(node *Node[K, V]) {
+	node.Parent.color = black
+	grandparent := node.grandparent()
+	grandparent.color = red
+	if node == node.Parent.Left && node.Parent == grandparent.Left {
+		tree.rotateRight(grandparent)
+	} else if node == node.Parent.Right && node.Parent == grandparent.Right {
+		tree.rotateLeft(grandparent)
+	}
+}
+
+func (tree *Tree[K, V]) lookup(key K) *Node[K, V] {
 	node := tree.Root
 	for node != nil {
-		cmp := key.Compare(node.Key)
-		if cmp == 0 {
+		if key == node.Key {
 			return node
-		} else if cmp < 0 {
+		} else if key < node.Key {
 			node = node.Left
 		} else {
 			node = node.Right
@@ -53,8 +223,49 @@ func (tree *Tree) lookup(key container.Key) *Node {
 	return nil
 }
 
-func (tree *Tree) Del(key container.Key) {
-	var child *Node
+func (tree *Tree[K, V]) replaceNode(old *Node[K, V], new *Node[K, V]) {
+	if old.Parent == nil {
+		tree.Root = new
+	} else {
+		if old == old.Parent.Left {
+			old.Parent.Left = new
+		} else {
+			old.Parent.Right = new
+		}
+	}
+	if new != nil {
+		new.Parent = old.Parent
+	}
+}
+
+func (tree *Tree[K, V]) rotateLeft(node *Node[K, V]) {
+	right := node.Right
+	tree.replaceNode(node, right)
+	node.Right = right.Left
+	if right.Left != nil {
+		right.Left.Parent = node
+	}
+	right.Left = node
+	node.Parent = right
+}
+
+func (tree *Tree[K, V]) rotateRight(node *Node[K, V]) {
+	left := node.Left
+	tree.replaceNode(node, left)
+	node.Left = left.Right
+	if left.Right != nil {
+		left.Right.Parent = node
+	}
+	left.Right = node
+	node.Parent = left
+}
+
+func (tree *Tree[K, V]) Clear() {
+	tree.Root = nil
+}
+
+func (tree *Tree[K, V]) Del(key K) {
+	var child *Node[K, V]
 
 	node := tree.lookup(key)
 	if node == nil {
@@ -81,37 +292,37 @@ func (tree *Tree) Del(key container.Key) {
 			child.color = black
 		}
 	}
-	tree.size--
 }
 
-func (tree *Tree) Get(key container.Key) interface{} {
+func (tree *Tree[K, V]) Get(key K) V {
+	var v V
+
 	node := tree.lookup(key)
 	if node != nil {
-		return node.Value
+		v = node.Value
 	}
-	return nil
+	return v
 }
 
-func (tree *Tree) Has(key container.Key) bool {
+func (tree *Tree[K, V]) Has(key K) bool {
 	return tree.lookup(key) != nil
 }
 
-func (tree *Tree) Set(key container.Key, value interface{}) {
-	var insertedNode *Node
+func (tree *Tree[K, V]) Set(key K, value V) {
+	var insertedNode *Node[K, V]
 	if tree.Root == nil {
-		tree.Root = &Node{Key: key, Value: value, color: red}
+		tree.Root = &Node[K, V]{Key: key, Value: value, color: red}
 		insertedNode = tree.Root
 	} else {
 		node := tree.Root
 		loop := true
 		for loop {
-			cmp := key.Compare(node.Key)
-			if cmp == 0 {
+			if key == node.Key {
 				node.Value = value
 				return
-			} else if cmp < 0 {
+			} else if key < node.Key {
 				if node.Left == nil {
-					node.Left = &Node{Key: key, Value: value, color: red}
+					node.Left = &Node[K, V]{Key: key, Value: value, color: red}
 					insertedNode = node.Left
 					loop = false
 				} else {
@@ -119,7 +330,7 @@ func (tree *Tree) Set(key container.Key, value interface{}) {
 				}
 			} else {
 				if node.Right == nil {
-					node.Right = &Node{Key: key, Value: value, color: red}
+					node.Right = &Node[K, V]{Key: key, Value: value, color: red}
 					insertedNode = node.Right
 					loop = false
 				} else {
@@ -130,15 +341,9 @@ func (tree *Tree) Set(key container.Key, value interface{}) {
 		insertedNode.Parent = node
 	}
 	tree.insertCase1(insertedNode)
-	tree.size++
 }
 
-func (tree *Tree) Clear() {
-	tree.Root = nil
-	tree.size = 0
-}
-
-func stringImpl(sb *strings.Builder, node *Node, level int) {
+func stringImpl[K cmp.Ordered, V any](sb *strings.Builder, node *Node[K, V], level int) {
 	if node == nil {
 		return
 	}
@@ -150,216 +355,8 @@ func stringImpl(sb *strings.Builder, node *Node, level int) {
 	stringImpl(sb, node.Right, level+1)
 }
 
-func (tree *Tree) String() string {
+func (tree *Tree[K, V]) String() string {
 	var sb strings.Builder
 	stringImpl(&sb, tree.Root, 0)
 	return sb.String()
-}
-
-func (node *Node) grandparent() *Node {
-	if node != nil && node.Parent != nil {
-		return node.Parent.Parent
-	}
-	return nil
-}
-
-func (node *Node) uncle() *Node {
-	if node == nil || node.Parent == nil || node.Parent.Parent == nil {
-		return nil
-	}
-	return node.Parent.sibling()
-}
-
-func (node *Node) sibling() *Node {
-	if node == nil || node.Parent == nil {
-		return nil
-	}
-	if node == node.Parent.Left {
-		return node.Parent.Right
-	}
-	return node.Parent.Left
-}
-
-func (tree *Tree) rotateLeft(node *Node) {
-	right := node.Right
-	tree.replaceNode(node, right)
-	node.Right = right.Left
-	if right.Left != nil {
-		right.Left.Parent = node
-	}
-	right.Left = node
-	node.Parent = right
-}
-
-func (tree *Tree) rotateRight(node *Node) {
-	left := node.Left
-	tree.replaceNode(node, left)
-	node.Left = left.Right
-	if left.Right != nil {
-		left.Right.Parent = node
-	}
-	left.Right = node
-	node.Parent = left
-}
-
-func (tree *Tree) replaceNode(old *Node, new *Node) {
-	if old.Parent == nil {
-		tree.Root = new
-	} else {
-		if old == old.Parent.Left {
-			old.Parent.Left = new
-		} else {
-			old.Parent.Right = new
-		}
-	}
-	if new != nil {
-		new.Parent = old.Parent
-	}
-}
-
-func (tree *Tree) insertCase1(node *Node) {
-	if node.Parent == nil {
-		node.color = black
-	} else {
-		tree.insertCase2(node)
-	}
-}
-
-func (tree *Tree) insertCase2(node *Node) {
-	if nodeColor(node.Parent) == black {
-		return
-	}
-	tree.insertCase3(node)
-}
-
-func (tree *Tree) insertCase3(node *Node) {
-	uncle := node.uncle()
-	if nodeColor(uncle) == red {
-		node.Parent.color = black
-		uncle.color = black
-		node.grandparent().color = red
-		tree.insertCase1(node.grandparent())
-	} else {
-		tree.insertCase4(node)
-	}
-}
-
-func (tree *Tree) insertCase4(node *Node) {
-	grandparent := node.grandparent()
-	if node == node.Parent.Right && node.Parent == grandparent.Left {
-		tree.rotateLeft(node.Parent)
-		node = node.Left
-	} else if node == node.Parent.Left && node.Parent == grandparent.Right {
-		tree.rotateRight(node.Parent)
-		node = node.Right
-	}
-	tree.insertCase5(node)
-}
-
-func (tree *Tree) insertCase5(node *Node) {
-	node.Parent.color = black
-	grandparent := node.grandparent()
-	grandparent.color = red
-	if node == node.Parent.Left && node.Parent == grandparent.Left {
-		tree.rotateRight(grandparent)
-	} else if node == node.Parent.Right && node.Parent == grandparent.Right {
-		tree.rotateLeft(grandparent)
-	}
-}
-
-func (node *Node) maximumNode() *Node {
-	if node == nil {
-		return nil
-	}
-	for node.Right != nil {
-		node = node.Right
-	}
-	return node
-}
-
-func (tree *Tree) deleteCase1(node *Node) {
-	if node.Parent == nil {
-		return
-	}
-	tree.deleteCase2(node)
-}
-
-func (tree *Tree) deleteCase2(node *Node) {
-	sibling := node.sibling()
-	if nodeColor(sibling) == red {
-		node.Parent.color = red
-		sibling.color = black
-		if node == node.Parent.Left {
-			tree.rotateLeft(node.Parent)
-		} else {
-			tree.rotateRight(node.Parent)
-		}
-	}
-	tree.deleteCase3(node)
-}
-
-func (tree *Tree) deleteCase3(node *Node) {
-	sibling := node.sibling()
-	if nodeColor(node.Parent) == black &&
-		nodeColor(sibling) == black &&
-		nodeColor(sibling.Left) == black &&
-		nodeColor(sibling.Right) == black {
-		sibling.color = red
-		tree.deleteCase1(node.Parent)
-	} else {
-		tree.deleteCase4(node)
-	}
-}
-
-func (tree *Tree) deleteCase4(node *Node) {
-	sibling := node.sibling()
-	if nodeColor(node.Parent) == red &&
-		nodeColor(sibling) == black &&
-		nodeColor(sibling.Left) == black &&
-		nodeColor(sibling.Right) == black {
-		sibling.color = red
-		node.Parent.color = black
-	} else {
-		tree.deleteCase5(node)
-	}
-}
-
-func (tree *Tree) deleteCase5(node *Node) {
-	sibling := node.sibling()
-	if node == node.Parent.Left &&
-		nodeColor(sibling) == black &&
-		nodeColor(sibling.Left) == red &&
-		nodeColor(sibling.Right) == black {
-		sibling.color = red
-		sibling.Left.color = black
-		tree.rotateRight(sibling)
-	} else if node == node.Parent.Right &&
-		nodeColor(sibling) == black &&
-		nodeColor(sibling.Right) == red &&
-		nodeColor(sibling.Left) == black {
-		sibling.color = red
-		sibling.Right.color = black
-		tree.rotateLeft(sibling)
-	}
-	tree.deleteCase6(node)
-}
-
-func (tree *Tree) deleteCase6(node *Node) {
-	sibling := node.sibling()
-	sibling.color = nodeColor(node.Parent)
-	node.Parent.color = black
-	if node == node.Parent.Left && nodeColor(sibling.Right) == red {
-		sibling.Right.color = black
-		tree.rotateLeft(node.Parent)
-	} else if nodeColor(sibling.Left) == red {
-		sibling.Left.color = black
-		tree.rotateRight(node.Parent)
-	}
-}
-
-func nodeColor(node *Node) color {
-	if node == nil {
-		return black
-	}
-	return node.color
 }

@@ -4,46 +4,44 @@ import (
 	"testing"
 
 	"generator"
-
-	"github.com/anton2920/gofa/container"
 )
 
 func benchmarkMapGet(b *testing.B, g generator.Generator) {
 	b.Helper()
 
-	m := make(map[container.Key]interface{})
+	m := make(map[int]int)
 	for i := 0; i < b.N; i++ {
-		m[container.Int(g.Generate())] = 0
+		m[g.Generate()] = 0
 	}
 
 	g.Reset()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = m[container.Int(g.Generate())]
+		_ = m[g.Generate()]
 	}
 }
 
 func benchmarkMapDel(b *testing.B, g generator.Generator) {
 	b.Helper()
 
-	m := make(map[container.Key]interface{})
+	m := make(map[int]int)
 	for i := 0; i < b.N; i++ {
-		m[container.Int(g.Generate())] = 0
+		m[g.Generate()] = 0
 	}
 
 	g.Reset()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		delete(m, container.Int(g.Generate()))
+		delete(m, g.Generate())
 	}
 }
 
 func benchmarkMapSet(b *testing.B, g generator.Generator) {
 	b.Helper()
 
-	m := make(map[container.Key]interface{})
+	m := make(map[int]int)
 	for i := 0; i < b.N; i++ {
-		m[container.Int(g.Generate())] = 0
+		m[g.Generate()] = 0
 	}
 }
 
