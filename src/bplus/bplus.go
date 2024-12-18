@@ -188,16 +188,11 @@ func (t *Tree[K, V]) init() {
 }
 
 func (t *Tree[K, V]) Begin() *Leaf[K, V] {
-	page := t.Root
-	for page != nil {
-		switch p := page.(type) {
-		case *Node[K]:
-			page = p.ChildPage0
-		case *Leaf[K, V]:
-			return p
-		}
+	leaf := t.rendSentinel.Next
+	if leaf == nil {
+		leaf = &t.endSentinel
 	}
-	return &t.endSentinel
+	return leaf
 }
 
 func (t *Tree[K, V]) End() *Leaf[K, V] {
@@ -205,16 +200,11 @@ func (t *Tree[K, V]) End() *Leaf[K, V] {
 }
 
 func (t *Tree[K, V]) Rbegin() *Leaf[K, V] {
-	page := t.Root
-	for page != nil {
-		switch p := page.(type) {
-		case *Node[K]:
-			page = p.Children[len(p.Children)-1]
-		case *Leaf[K, V]:
-			return p
-		}
+	leaf := t.endSentinel.Prev
+	if leaf == nil {
+		leaf = &t.rendSentinel
 	}
-	return &t.rendSentinel
+	return leaf
 }
 
 func (t *Tree[K, V]) Rend() *Leaf[K, V] {
@@ -455,6 +445,8 @@ func (t *Tree[K, V]) Set(key K, value V) {
 		leaf.Prev = &t.rendSentinel
 		leaf.Next = &t.endSentinel
 		t.Root = leaf
+		t.endSentinel.Prev = leaf
+		t.rendSentinel.Next = leaf
 		return
 	}
 
